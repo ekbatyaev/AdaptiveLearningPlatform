@@ -67,7 +67,14 @@ def request_to_model(user_request, old_context = "") -> Dict:
 
     raw_output = response.output_text or ""
     json_text = extract_json_text(raw_output)
-    answer = json.loads(json_text)
-    print(answer)
+    try:
+        parsed = json.loads(json_text)
+        return parsed
+
+    except json.JSONDecodeError as error:
+        print(
+            f"Полученный ответ не соответствует JSON-схеме: {error}\nТекст ответа:\n{json_text}"
+        )
+        return {"error": True}
 
 print(request_to_model("Как научиться умножению?"))
