@@ -4,7 +4,7 @@ import openai
 from pathlib import Path
 from typing import Dict
 from dotenv import load_dotenv
-from sub_functions import extract_json_text
+from .sub_functions import extract_json_text
 
 ENV_PATH = Path(".env")
 
@@ -73,7 +73,7 @@ SYSTEM_PROMPT = \
     -Подготовь эталоны. Мысленно составь правильные ответы и критерии оценки для каждого задания.
 """
 
-def final_theme_test(user_request, theme_name, additional_info, old_context="") -> Dict:
+def final_theme_test(title, description) -> Dict:
     client = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
@@ -91,20 +91,16 @@ def final_theme_test(user_request, theme_name, additional_info, old_context="") 
                         "type": "input_text",
                         "text": (
                             f"""
-                                Сообщение пользователя: 
-
-                                ```
-                                {user_request}
                                 ```
                                 Название темы урока:
 
                                 ```
-                                {theme_name}
+                                {title}
                                 ```
                                 Описание темы урока:
 
                                 ```
-                                {additional_info}
+                                {description}
                                 ```
                                 """
                         )
@@ -131,5 +127,5 @@ def final_theme_test(user_request, theme_name, additional_info, old_context="") 
 
 
 if __name__ == "__main__":
-    print(final_theme_test(user_request="", theme_name="Основы синтаксиса Python",
-                           additional_info="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ."))
+    print(final_theme_test(title="Основы синтаксиса Python",
+                           description="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ."))

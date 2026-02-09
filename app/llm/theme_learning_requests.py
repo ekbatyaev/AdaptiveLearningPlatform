@@ -4,7 +4,7 @@ import openai
 from pathlib import Path
 from typing import Dict
 from dotenv import load_dotenv
-from sub_functions import extract_json_text
+from .sub_functions import extract_json_text
 
 ENV_PATH = Path(".env")
 
@@ -97,7 +97,7 @@ SYSTEM_PROMPT = \
 {"answer": "..."
 ```
 """
-def learning_with_llm_request(user_request, theme_name, additional_info, old_context = "") -> Dict:
+def learning_with_llm_request(user_request, theme_name, additional_info, old_context) -> Dict:
     client = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
@@ -130,6 +130,12 @@ def learning_with_llm_request(user_request, theme_name, additional_info, old_con
                                 ```
                                 {additional_info}
                                 ```
+                                
+                                Контекст общения:
+                                
+                                ```
+                                {old_context}
+                                ```
                                 """
                             )
                         }
@@ -154,4 +160,4 @@ def learning_with_llm_request(user_request, theme_name, additional_info, old_con
         return {"error": True}
 
 if __name__ == "__main__":
-    print(learning_with_llm_request(user_request="", theme_name="Основы синтаксиса Python", additional_info="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ."))
+    print(learning_with_llm_request(user_request="", theme_name="Основы синтаксиса Python", additional_info="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ.", old_context = ""))

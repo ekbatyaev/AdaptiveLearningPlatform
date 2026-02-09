@@ -14,7 +14,7 @@ def main():
         "password": PASSWORD,
         "api_key": API_KEY
     }
-    resp = requests.post(f"{BASE_URL}/register", json=register_payload)
+    resp = requests.post(f"{BASE_URL}/user_register", json=register_payload)
     pprint(resp.json())
 
     headers = {
@@ -27,7 +27,7 @@ def main():
         "username": USERNAME,
         "password": PASSWORD
     }
-    resp = requests.post(f"{BASE_URL}/login", json=login_payload)
+    resp = requests.post(f"{BASE_URL}/user_login", json=login_payload)
     pprint(resp.json())
 
     print("\n=== 3️⃣ Получить информацию о себе ===")
@@ -49,7 +49,7 @@ def main():
         "description": "Learn Python from scratch",
         "data_json": {"lessons": 5, "difficulty": "easy"}
     }
-    resp = requests.post(f"{BASE_URL}/topics", json=topic_payload, headers=headers)
+    resp = requests.post(f"{BASE_URL}/create_topic", json=topic_payload, headers=headers)
     topic = resp.json()
     pprint(topic)
     topic_id = topic["id"]

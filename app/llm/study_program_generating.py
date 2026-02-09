@@ -4,7 +4,7 @@ import openai
 from pathlib import Path
 from typing import Dict
 from dotenv import load_dotenv
-from sub_functions import extract_json_text
+from .sub_functions import extract_json_text
 
 ENV_PATH = Path(".env")
 
@@ -101,7 +101,7 @@ SYSTEM_PROMPT = \
 
 
 
-def generate_learning_program(main_theme, additional_info) -> Dict:
+def generate_learning_program(title, description) -> Dict:
     client = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
@@ -120,11 +120,11 @@ def generate_learning_program(main_theme, additional_info) -> Dict:
                         "text": (f"""
                         ДАННЫЕ ДЛЯ ГЕНЕРАЦИИ:
                                 
-                        ОСНОВНАЯ ТЕМА: ```{main_theme}```
+                        ОСНОВНАЯ ТЕМА: ```{title}```
                         
                         ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ:
                         ```
-                        {additional_info}
+                        {description}
                         ```""")
                     }
                 ],
@@ -148,4 +148,4 @@ def generate_learning_program(main_theme, additional_info) -> Dict:
         return {"error": True}
 
 if __name__ == "__main__":
-    print(generate_learning_program(main_theme="Python", additional_info="Хочу изучить этот язык программирования для ЕГЭ"))
+    print(generate_learning_program(title = "Python", description = "Хочу изучить этот язык программирования для ЕГЭ"))

@@ -7,8 +7,11 @@ import bcrypt
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from table_models import User, Topic
-from connection_to_database import init_db, get_db
+from .table_models import User, Topic
+from .connection_to_database import init_db, get_db
+from llm.theme_learning_requests import learning_with_llm_request
+from llm.study_program_generating import generate_learning_program
+from llm.final_theme_assesment_generating import final_theme_test
 
 # Создаем приложение
 app = FastAPI(
@@ -20,7 +23,7 @@ app = FastAPI(
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # В продакшене замените на конкретные домены
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,8 +42,7 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-
-class UserResponse(BaseModel):
+class UserInfoResponse(BaseModel):
     id: int
     username: str
     achievements_count: int
@@ -49,6 +51,34 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class UserThemeLearning(BaseModel):
+    username: str
+    password: str
+    user_request: str
+    theme_name: str
+    additional_info: str
+    old_context: str
+
+
+class UserThemeLearningResponse(BaseModel):
+    model_response: str
+
+    class Config:
+        from_attributes = True
+
+class TopicFinalTest(BaseModel):
+    username: str
+    password: str
+    title: str
+    description: str
+
+
+class TopicFinalTestResponse(BaseModel):
+    model_response: str
+
+    class Config:
+        from_attributes = True
 
 class UserWithAPIKeyResponse(BaseModel):
     id: int
@@ -129,7 +159,7 @@ def startup_event():
 
 # Ручки для пользователей
 
-@app.post("/register", response_model=UserWithAPIKeyResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/user_register", response_model=UserWithAPIKeyResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Регистрация нового пользователя
@@ -184,7 +214,7 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 
-@app.post("/login", response_model=UserWithAPIKeyResponse)
+@app.post("/user_login", response_model=UserWithAPIKeyResponse)
 def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.username == login_data.username))
     if not user or not bcrypt.checkpw(login_data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
@@ -244,7 +274,7 @@ def update_api_key(data: APIKeyUpdate, current_user: User = Depends(get_current_
     }
 
 
-@app.get("/users/{user_id}", response_model=UserResponse)
+@app.get("/users/{user_id}", response_model=UserInfoResponse)
 def get_user_by_id(
         user_id: int,
         current_user: User = Depends(get_current_user),
@@ -263,7 +293,7 @@ def get_user_by_id(
         )
 
     # Возвращаем пользователя без API ключа для безопасности
-    return UserResponse(
+    return UserInfoResponse(
         id=user.id,
         username=user.username,
         achievements_count=user.achievements_count,
@@ -273,19 +303,45 @@ def get_user_by_id(
 
 # Ручки для тем
 
-@app.post("/topics", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/get_final_theme_test", response_model=TopicFinalTestResponse, status_code=status.HTTP_201_CREATED)
+def get_final_test(
+        topic_data: TopicFinalTest,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    current_user.last_used = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+
+    try:
+        model_response = final_theme_test(title="Основы синтаксиса Python",
+                         description="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ.")
+
+    except Exception as e:
+        print("Ошибка: ", e)
+        return {"model_response": True}
+
+    return TopicFinalTestResponse(**model_response)
+
+
+@app.post("/create_topic", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)
 def create_topic(
         topic_data: TopicCreate,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+    try:
+        data_json = generate_learning_program(title =topic_data.title, description = topic_data.description)
+    except Exception as e:
+        print("Ошибка: ", e)
+        return {"model_response": True}
     """
     Создание новой темы
     """
     new_topic = Topic(
         title=topic_data.title,
         description=topic_data.description,
-        data_json=topic_data.data_json,
+        data_json=data_json,
         creator_id=current_user.id
     )
 
@@ -293,11 +349,6 @@ def create_topic(
         db.add(new_topic)
         db.commit()
         db.refresh(new_topic)
-
-        # Увеличиваем счетчик достижений пользователя
-        current_user.achievements_count += 1
-        db.commit()
-        db.refresh(current_user)
 
     except IntegrityError as e:
         db.rollback()
@@ -318,6 +369,26 @@ def create_topic(
     }
 
     return TopicResponse(**response_dict)
+
+@app.post("/theme_learning", response_model=UserThemeLearningResponse, status_code=status.HTTP_201_CREATED)
+def get_theme_learning_conversation(
+        topic_data: UserThemeLearning,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+
+    current_user.last_used = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+
+    try:
+        model_response = learning_with_llm_request(user_request=topic_data.user_request, theme_name=topic_data.theme_name,
+                                  additional_info=topic_data.additional_info, old_context=topic_data.old_context)
+    except Exception as e:
+        print("Ошибка: ", e)
+        return {"model_response": True}
+
+    return UserThemeLearningResponse(**model_response)
 
 
 @app.get("/topics", response_model=List[TopicResponse])
@@ -531,33 +602,6 @@ def get_statistics(db: Session = Depends(get_db)):
         "users_count": users_count,
         "topics_count": topics_count,
         "timestamp": datetime.utcnow().isoformat()
-    }
-
-
-# Корневой эндпоинт
-
-@app.get("/")
-def root():
-    """
-    Корневой эндпоинт API
-    """
-    return {
-        "message": "Learning Topics API",
-        "version": "1.0.0",
-        "documentation": "/docs",
-        "endpoints": {
-            "auth": ["POST /register", "POST /login"],
-            "users": ["GET /users/me", "PUT /users/me/api-key", "GET /users/{id}"],
-            "topics": [
-                "POST /topics",
-                "GET /topics",
-                "GET /topics/{id}",
-                "PUT /topics/{id}",
-                "DELETE /topics/{id}",
-                "GET /users/me/topics"
-            ],
-            "system": ["GET /stats", "GET /health"]
-        }
     }
 
 
