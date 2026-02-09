@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 import os
 
 # Загружаем переменные окружения
@@ -39,5 +39,14 @@ def init_db():
     """
     Инициализация базы данных - создание таблиц
     """
-    from .db_models import User, Topic
     Base.metadata.create_all(bind=engine)
+
+def get_db() -> Session:
+    """
+    Dependency для получения сессии базы данных
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

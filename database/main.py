@@ -7,10 +7,8 @@ import bcrypt
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-from db_models import User, Topic
-from database import get_db
-from connection_to_db import init_db
+from table_models import User, Topic
+from connection_to_database import init_db, get_db
 
 # Создаем приложение
 app = FastAPI(
@@ -62,6 +60,9 @@ class UserWithAPIKeyResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class APIKeyUpdate(BaseModel):
+    new_api_key: str
+
 
 class TopicCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
@@ -102,32 +103,19 @@ class TopicResponse(BaseModel):
 
 # Зависимости
 
-def get_current_user(
-        x_api_key: str = Header(None, alias="X-API-Key"),
-        db: Session = Depends(get_db)
-) -> User:
-    """Получение текущего пользователя по API ключу"""
-    if not x_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key is required"
-        )
 
-    user = db.scalar(
-        select(User).where(User.api_key == x_api_key)
-    )
+def get_current_user(username: str = Header(...), password: str = Header(...), db: Session = Depends(get_db)) -> User:
+    """
+    Получение текущего пользователя по username и password в заголовках.
+    """
+    user = db.scalar(select(User).where(User.username == username))
+    if not user or not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key"
-        )
-
-    # Обновляем время последнего использования
+    # обновляем время последнего использования
     user.last_used = datetime.utcnow()
     db.commit()
     db.refresh(user)
-
     return user
 
 
@@ -198,35 +186,23 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/login", response_model=UserWithAPIKeyResponse)
 def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
-    """
-    Аутентификация пользователя
-    """
-    user = db.scalar(
-        select(User).where(User.username == login_data.username)
-    )
+    user = db.scalar(select(User).where(User.username == login_data.username))
+    if not user or not bcrypt.checkpw(login_data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
-        )
-
-    # Проверяем пароль
-    if not bcrypt.checkpw(
-            login_data.password.encode('utf-8'),
-            user.password_hash.encode('utf-8')
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password"
-        )
-
-    # Обновляем время последнего использования
+    # обновляем время последнего использования
     user.last_used = datetime.utcnow()
     db.commit()
     db.refresh(user)
 
     return user
+
+@app.get("/users/me/api-key")
+def get_my_api_key(current_user: User = Depends(get_current_user)):
+    """
+    Получение API ключа текущего пользователя
+    """
+    return {"api_key": current_user.api_key}
 
 
 @app.get("/users/me", response_model=UserWithAPIKeyResponse)
@@ -238,11 +214,8 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @app.put("/users/me/api-key")
-def update_api_key(
-        new_api_key: str,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
+def update_api_key(data: APIKeyUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_api_key = data.new_api_key
     """
     Обновление API ключа пользователя
     """

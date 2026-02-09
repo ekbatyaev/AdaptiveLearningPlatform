@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16
@@ -19,6 +17,7 @@ services:
 
   app:
     build:
+      context: .
       dockerfile: Dockerfile
     depends_on:
       db:
@@ -26,10 +25,6 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
-    volumes:
-      - ../database:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
+      - 8000:8000
 volumes:
   postgres_data:
