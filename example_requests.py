@@ -5,14 +5,12 @@ BASE_URL = "http://127.0.0.1:8000"
 
 USERNAME = "testuser"
 PASSWORD = "password123"
-API_KEY = "my-secret-api-key-123"  # для регистрации
 
 def main():
-    print("\n=== 1️⃣ Регистрация пользователя ===")
+    print("\n=== Регистрация пользователя ===")
     register_payload = {
         "username": USERNAME,
-        "password": PASSWORD,
-        "api_key": API_KEY
+        "password": PASSWORD
     }
     resp = requests.post(f"{BASE_URL}/user_register", json=register_payload)
     pprint(resp.json())
@@ -22,7 +20,7 @@ def main():
         "password": PASSWORD
     }
 
-    print("\n=== 2️⃣ Логин пользователя ===")
+    print("\n=== Логин пользователя ===")
     login_payload = {
         "username": USERNAME,
         "password": PASSWORD
@@ -30,20 +28,11 @@ def main():
     resp = requests.post(f"{BASE_URL}/user_login", json=login_payload)
     pprint(resp.json())
 
-    print("\n=== 3️⃣ Получить информацию о себе ===")
-    resp = requests.get(f"{BASE_URL}/users/me", headers=headers)
+    print("\n=== Получить информацию о себе ===")
+    resp = requests.get(f"{BASE_URL}/users/info", headers=headers)
     pprint(resp.json())
 
-    print("\n=== 4️⃣ Получить свой API ключ ===")
-    resp = requests.get(f"{BASE_URL}/users/me/api-key", headers=headers)
-    pprint(resp.json())
-
-    print("\n=== 5️⃣ Обновить API ключ ===")
-    new_api_key_payload = {"new_api_key": "new-api-key-456"}
-    resp = requests.put(f"{BASE_URL}/users/me/api-key", headers=headers, json=new_api_key_payload)
-    pprint(resp.json())
-
-    print("\n=== 6️⃣ Создать тему ===")
+    print("\n=== Создать тему ===")
     topic_payload = {
         "title": "Python Basics",
         "description": "Learn Python from scratch",
@@ -54,35 +43,40 @@ def main():
     pprint(topic)
     topic_id = topic["id"]
 
-    print("\n=== 7️⃣ Получить все темы ===")
+    print("\n=== Получить все темы ===")
     resp = requests.get(f"{BASE_URL}/topics")
     pprint(resp.json())
 
-    print("\n=== 8️⃣ Получить тему по ID ===")
-    resp = requests.get(f"{BASE_URL}/topics/{topic_id}")
+    print("\n=== Получить тему по ID ===")
+    resp = requests.get(f"{BASE_URL}/topics/get_info_{topic_id}")
     pprint(resp.json())
 
-    print("\n=== 9️⃣ Обновить тему ===")
+    print("\n=== Обновить тему ===")
     update_payload = {
         "title": "Python Basics Updated",
         "description": "Updated description",
     }
-    resp = requests.put(f"{BASE_URL}/topics/{topic_id}", json=update_payload, headers=headers)
+
+    resp = requests.put(f"{BASE_URL}/topics/update_{topic_id}", json=update_payload, headers=headers)
     pprint(resp.json())
 
-    print("\n=== 🔟 Удалить тему ===")
-    resp = requests.delete(f"{BASE_URL}/topics/{topic_id}", headers=headers)
-    pprint(resp.json())
-
-    print("\n=== 1️⃣1️⃣ Получить свои темы ===")
+    print("\n=== Получить свои темы ===")
     resp = requests.get(f"{BASE_URL}/users/me/topics", headers=headers)
     pprint(resp.json())
 
-    print("\n=== 1️⃣2️⃣ Статистика ===")
+    print("\n=== Удалить тему ===")
+    resp = requests.delete(f"{BASE_URL}/topics/delete_{topic_id}", headers=headers)
+    pprint(resp.json())
+
+    print("\n=== Получить свои темы ===")
+    resp = requests.get(f"{BASE_URL}/users/me/topics", headers=headers)
+    pprint(resp.json())
+
+    print("\n=== Статистика ===")
     resp = requests.get(f"{BASE_URL}/stats")
     pprint(resp.json())
 
-    print("\n=== 1️⃣3️⃣ Проверка здоровья ===")
+    print("\n=== Проверка здоровья ===")
     resp = requests.get(f"{BASE_URL}/health")
     pprint(resp.json())
 

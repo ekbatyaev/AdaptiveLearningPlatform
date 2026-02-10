@@ -15,7 +15,6 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     achievements_count = Column(Integer, default=0)
     last_used = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    api_key = Column(String(500), unique=True, index=True, nullable=False)
 
     # Связи
     created_topics = relationship("Topic", back_populates="creator")

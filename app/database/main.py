@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .table_models import User, Topic
@@ -35,8 +35,6 @@ app.add_middleware(
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
-    api_key: str = Field(..., min_length=1, max_length=500)
-
 
 class UserLogin(BaseModel):
     username: str
@@ -50,7 +48,6 @@ class UserInfoResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class UserThemeLearning(BaseModel):
     username: str
@@ -80,19 +77,14 @@ class TopicFinalTestResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class UserWithAPIKeyResponse(BaseModel):
+class UserResponse(BaseModel):
     id: int
     username: str
     achievements_count: int
     last_used: datetime
-    api_key: str
 
     class Config:
         from_attributes = True
-
-class APIKeyUpdate(BaseModel):
-    new_api_key: str
-
 
 class TopicCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
@@ -159,7 +151,7 @@ def startup_event():
 
 # Ручки для пользователей
 
-@app.post("/user_register", response_model=UserWithAPIKeyResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/user_register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Регистрация нового пользователя
@@ -175,17 +167,6 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Username already exists"
         )
 
-    # Проверяем, не используется ли уже такой API ключ
-    existing_user_by_api_key = db.scalar(
-        select(User).where(User.api_key == user_data.api_key)
-    )
-
-    if existing_user_by_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="API key already in use"
-        )
-
     # Хэшируем пароль
     password_hash = bcrypt.hashpw(
         user_data.password.encode('utf-8'),
@@ -196,7 +177,6 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     new_user = User(
         username=user_data.username,
         password_hash=password_hash,
-        api_key=user_data.api_key,
         last_used=datetime.utcnow()
     )
 
@@ -214,7 +194,7 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 
-@app.post("/user_login", response_model=UserWithAPIKeyResponse)
+@app.post("/user_login", response_model=UserResponse)
 def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.username == login_data.username))
     if not user or not bcrypt.checkpw(login_data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
@@ -227,51 +207,13 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
 
     return user
 
-@app.get("/users/me/api-key")
-def get_my_api_key(current_user: User = Depends(get_current_user)):
-    """
-    Получение API ключа текущего пользователя
-    """
-    return {"api_key": current_user.api_key}
 
-
-@app.get("/users/me", response_model=UserWithAPIKeyResponse)
+@app.get("/users/info", response_model=UserResponse)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
-    Получение информации о текущем пользователе (включая API ключ)
+    Получение информации о текущем пользователе
     """
     return current_user
-
-
-@app.put("/users/me/api-key")
-def update_api_key(data: APIKeyUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    new_api_key = data.new_api_key
-    """
-    Обновление API ключа пользователя
-    """
-    # Проверяем, не используется ли уже такой API ключ другим пользователем
-    existing_user = db.scalar(
-        select(User).where(
-            User.api_key == new_api_key,
-            User.id != current_user.id
-        )
-    )
-
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="API key already in use by another user"
-        )
-
-    current_user.api_key = new_api_key
-    current_user.last_used = datetime.utcnow()
-    db.commit()
-    db.refresh(current_user)
-
-    return {
-        "message": "API key updated successfully",
-        "new_api_key": new_api_key
-    }
 
 
 @app.get("/users/{user_id}", response_model=UserInfoResponse)
@@ -281,7 +223,7 @@ def get_user_by_id(
         db: Session = Depends(get_db)
 ):
     """
-    Получение информации о пользователе по ID (без API ключа)
+    Получение информации о пользователе по ID
     Только для аутентифицированных пользователей
     """
     user = db.get(User, user_id)
@@ -292,14 +234,12 @@ def get_user_by_id(
             detail="User not found"
         )
 
-    # Возвращаем пользователя без API ключа для безопасности
     return UserInfoResponse(
         id=user.id,
         username=user.username,
         achievements_count=user.achievements_count,
         last_used=user.last_used
     )
-
 
 # Ручки для тем
 
@@ -314,8 +254,8 @@ def get_final_test(
     db.refresh(current_user)
 
     try:
-        model_response = final_theme_test(title="Основы синтаксиса Python",
-                         description="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ.")
+        model_response = final_theme_test(title = topic_data.title,
+                         description = topic_data.description)
 
     except Exception as e:
         print("Ошибка: ", e)
@@ -331,7 +271,7 @@ def create_topic(
         db: Session = Depends(get_db)
 ):
     try:
-        data_json = generate_learning_program(title =topic_data.title, description = topic_data.description)
+        data_json = generate_learning_program(title = topic_data.title, description = topic_data.description)
     except Exception as e:
         print("Ошибка: ", e)
         return {"model_response": True}
@@ -382,8 +322,8 @@ def get_theme_learning_conversation(
     db.refresh(current_user)
 
     try:
-        model_response = learning_with_llm_request(user_request=topic_data.user_request, theme_name=topic_data.theme_name,
-                                  additional_info=topic_data.additional_info, old_context=topic_data.old_context)
+        model_response = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
+                                  additional_info = topic_data.additional_info, old_context = topic_data.old_context)
     except Exception as e:
         print("Ошибка: ", e)
         return {"model_response": True}
@@ -401,7 +341,6 @@ def get_all_topics(
     """
     Получение списка всех тем с пагинацией и поиском
     """
-    from sqlalchemy import or_
 
     query = select(Topic)
 
@@ -443,7 +382,7 @@ def get_all_topics(
     return result
 
 
-@app.get("/topics/{topic_id}", response_model=TopicResponse)
+@app.get("/topics/get_info_{topic_id}", response_model=TopicResponse)
 def get_topic_by_id(topic_id: int, db: Session = Depends(get_db)):
     """
     Получение информации о конкретной теме по ID
@@ -472,7 +411,7 @@ def get_topic_by_id(topic_id: int, db: Session = Depends(get_db)):
     return topic_dict
 
 
-@app.put("/topics/{topic_id}", response_model=TopicResponse)
+@app.put("/topics/update_{topic_id}", response_model=TopicResponse)
 def update_topic(
         topic_id: int,
         topic_data: TopicUpdate,
@@ -519,7 +458,7 @@ def update_topic(
     return topic_dict
 
 
-@app.delete("/topics/{topic_id}")
+@app.delete("/topics/delete_{topic_id}")
 def delete_topic(
         topic_id: int,
         current_user: User = Depends(get_current_user),
