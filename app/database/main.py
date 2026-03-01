@@ -9,9 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .table_models import User, Topic
 from .connection_to_database import init_db, get_db
-from llm.theme_learning_requests import learning_with_llm_request
-from llm.study_program_generating import generate_learning_program
-from llm.final_theme_assesment_generating import final_theme_test
+from app.llm.theme_learning_requests import learning_with_llm_request
+from app.llm.study_program_generating import generate_learning_program
+from app.llm.final_theme_assesment_generating import final_theme_test
 
 # Создаем приложение
 app = FastAPI(

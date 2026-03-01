@@ -3,73 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учебный помощник с AI</title>
+    <title>AdaptiveLearningPlatform</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts - Inter (современный читаемый шрифт) -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Библиотека для Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- Подсветка синтаксиса (поменяем тему на светлую) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- Боковая панель с темами -->
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <h2><i class="fas fa-graduation-cap"></i> Темы для изучения</h2>
-                <p class="sidebar-subtitle">Выберите тему для детального изучения</p>
-            </div>
-            <div id="themes-list">
-                <!-- Темы будут загружены из JSON -->
+    <div id="app">
+        <!-- Страница авторизации -->
+        <div id="auth-page" class="auth-page">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <i class="fas fa-graduation-cap auth-icon"></i>
+                    <h1>AdaptiveLearningPlatform</h1>
+                    <p>Образовательная ИИ-платформа</p>
+                </div>
+                
+                <div class="auth-tabs">
+                    <button class="auth-tab active" data-tab="login">Вход</button>
+                    <button class="auth-tab" data-tab="register">Регистрация</button>
+                </div>
+
+                <!-- Форма входа -->
+                <form id="login-form" class="auth-form active">
+                    <div class="form-group">
+                        <label for="login-username">
+                            <i class="fas fa-user"></i> Имя пользователя
+                        </label>
+                        <input type="text" id="login-username" required placeholder="Введите имя пользователя">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">
+                            <i class="fas fa-lock"></i> Пароль
+                        </label>
+                        <input type="password" id="login-password" required placeholder="Введите пароль">
+                    </div>
+                    <button type="submit" class="auth-submit">
+                        Войти <i class="fas fa-arrow-right"></i>
+                    </button>
+                </form>
+
+                <!-- Форма регистрации -->
+                <form id="register-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="register-username">
+                            <i class="fas fa-user"></i> Имя пользователя
+                        </label>
+                        <input type="text" id="register-username" required minlength="3" placeholder="От 3 символов">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">
+                            <i class="fas fa-lock"></i> Пароль
+                        </label>
+                        <input type="password" id="register-password" required minlength="6" placeholder="От 6 символов">
+                    </div>
+                    <button type="submit" class="auth-submit">
+                        Зарегистрироваться <i class="fas fa-user-plus"></i>
+                    </button>
+                </form>
             </div>
         </div>
 
-        <!-- Основной чат -->
-        <div class="main-content">
-            <div class="chat-wrapper">
-                <div class="messages" id="messages">
-                    <!-- Сообщения будут добавляться здесь -->
+        <!-- Основное приложение (изначально скрыто) -->
+        <div id="main-app" class="container" style="display: none;">
+            <!-- Боковая панель -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <h2><i class="fas fa-graduation-cap"></i> AdaptiveLearning</h2>
+                    <div class="user-info" id="user-info">
+                        <!-- Информация о пользователе -->
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-book"></i> Мои темы</h3>
+                        <button class="add-topic-btn" id="add-topic-btn">
+                            <i class="fas fa-plus"></i> Создать
+                        </button>
+                    </div>
+                    <div id="my-topics-list" class="topics-list">
+                        <!-- Мои темы -->
+                    </div>
                 </div>
 
-                <div class="input-area">
-                    <div class="typing-indicator" id="typing-indicator" style="display: none;">
-                        <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
+                <div class="sidebar-section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-globe"></i> Все темы</h3>
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="search-topics" placeholder="Поиск...">
                         </div>
-                        <span class="typing-text">AI печатает ответ...</span>
                     </div>
-                    
-                    <div class="input-wrapper">
-                        <textarea 
-                            id="user-input" 
-                            placeholder="Напишите ваш вопрос или выберите тему из списка слева..." 
-                            rows="1"
-                        ></textarea>
-                        <button id="send-btn" class="send-button">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
+                    <div id="all-topics-list" class="topics-list">
+                        <!-- Все темы -->
                     </div>
-                    <div class="quick-buttons">
-                        <button class="quick-btn" data-topic="синтаксис">
-                            <i class="fas fa-code"></i> Синтаксис Python
-                        </button>
-                        <button class="quick-btn" data-topic="функции">
-                            <i class="fas fa-cogs"></i> Функции
-                        </button>
-                        <button class="quick-btn" data-topic="ООП">
-                            <i class="fas fa-object-group"></i> ООП
-                        </button>
+                </div>
+
+                <div class="sidebar-footer">
+                    <button class="logout-btn" id="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i> Выйти
+                    </button>
+                </div>
+            </div>
+
+            <!-- Основной чат -->
+            <div class="main-content">
+                <div class="chat-wrapper">
+                    <div class="chat-header" id="chat-header">
+                        <h2 id="current-theme-title">Выберите тему для изучения</h2>
+                        <p id="current-theme-description" class="theme-description"></p>
+                    </div>
+
+                    <div class="messages" id="messages">
+                        <!-- Сообщения -->
+                    </div>
+
+                    <div class="input-area">
+                        <div class="typing-indicator" id="typing-indicator" style="display: none;">
+                            <div class="typing-dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                            <span class="typing-text">AI печатает ответ...</span>
+                        </div>
+                        
+                        <div class="input-wrapper">
+                            <textarea 
+                                id="user-input" 
+                                placeholder="Задайте вопрос по теме..." 
+                                rows="1"
+                                disabled
+                            ></textarea>
+                            <button id="send-btn" class="send-button" disabled>
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Модальное окно создания темы -->
+    <div id="create-topic-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создать новую тему</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <form id="create-topic-form">
+                <div class="form-group">
+                    <label for="topic-title">Название темы</label>
+                    <input type="text" id="topic-title" required placeholder="Например: Python для начинающих">
+                </div>
+                <div class="form-group">
+                    <label for="topic-description">Описание</label>
+                    <textarea id="topic-description" required placeholder="Опишите, что хотите изучить..." rows="4"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn">Отмена</button>
+                    <button type="submit" class="submit-btn">Создать тему</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="api.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

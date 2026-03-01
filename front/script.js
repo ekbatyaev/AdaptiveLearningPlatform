@@ -1,137 +1,29 @@
-// Данные тем из JSON
-const themesData = {
-    "themes": [
-        {
-            "name": "Основы синтаксиса Python",
-            "description": "Изучение основных синтаксических конструкций языка Python, включая переменные, операторы, условные операторы и циклы. Приобретение навыков написания простых программ."
-        },
-        {
-            "name": "Работа с типами данных в Python",
-            "description": "Изучение различных типов данных в Python (числа, строки, списки, кортежи, словари) и операций с ними. Приобретение навыков преобразования типов и работы с коллекциями данных."
-        },
-        {
-            "name": "Функции и модули в Python",
-            "description": "Изучение функций в Python, включая аргументы, параметры и возвращаемые значения. Ознакомление с модулями и библиотеками, такими как import и использование функций из сторонних библиотек."
-        },
-        {
-            "name": "Работа со списками и кортежами",
-            "description": "Изучение списков и кортежей в Python, их создание, изменение и обработка. Приобретение навыков работы с элементами коллекций, срезами и методами для работы со списками и кортежами."
-        },
-        {
-            "name": "Словари и множества в Python",
-            "description": "Изучение словарей и множеств в Python, их создание и работа с элементами. Приобретение навыков использования этих структур данных для решения задач, включая поиск, добавление и удаление элементов."
-        },
-        {
-            "name": "Основы объектно-ориентированного программирования в Python",
-            "description": "Введение в объектно-ориентированное программирование (ООП) в Python. Изучение классов, объектов, наследования и полиморфизма. Приобретение навыков создания собственных классов и использования ООП для решения задач."
-        },
-        {
-            "name": "Работа с файлами в Python",
-            "description": "Изучение чтения данных из файлов и записи данных в файлы. Ознакомление с методами работы с текстовыми и бинарными файлами. Приобретение навыков обработки файлов различных форматов."
-        },
-        {
-            "name": "Исключения и обработка ошибок в Python",
-            "description": "Изучение исключений в Python и их обработки. Ознакомление с блоками try-except и другими механизмами обработки ошибок. Приобретение навыков написания устойчивых к ошибкам программ."
-        },
-        {
-            "name": "Введение в библиотеки и фреймворки для Python",
-            "description": "Ознакомление с популярными библиотеками и фреймворками для Python, такими как NumPy, Pandas, Matplotlib и другие. Приобретение навыков работы с этими инструментами для решения различных задач."
-        },
-        {
-            "name": "Основы работы с библиотекой NumPy",
-            "description": "Изучение основ работы с библиотекой NumPy для научных вычислений. Ознакомление с массивами, функциями для работы с массивами и их применением в решении математических задач."
-        }
-    ]
-};
-
-// Пример ответов с Markdown
-const mockAIResponses = {
-    "синтаксис": `# Основы синтаксиса Python
-
-Python известен своим чистым и читаемым синтаксисом. Вот основные элементы:
-
-## 1. Переменные и типы данных
-
-В Python не нужно явно объявлять тип переменной:
-
-\`\`\`python
-# Числа
-age = 25
-price = 19.99
-
-# Строки
-name = "Анна"
-greeting = 'Привет, мир!'
-
-# Логические значения
-is_active = True
-is_completed = False
-\`\`\`
-
-## 2. Условные операторы
-
-\`\`\`python
-temperature = 22
-
-if temperature > 30:
-    print("Жарко")
-elif temperature > 20:
-    print("Тепло")
-else:
-    print("Прохладно")
-\`\`\`
-
-## 3. Циклы
-
-**Цикл for:**
-\`\`\`python
-for i in range(5):
-    print(f"Итерация {i}")
-\`\`\`
-
-**Цикл while:**
-\`\`\`python
-count = 0
-while count < 3:
-    print(f"Счет: {count}")
-    count += 1
-\`\`\`
-
-## 4. Функции
-
-\`\`\`python
-def greet(name):
-    """Приветствует пользователя по имени"""
-    return f"Привет, {name}!"
-
-message = greet("Мария")
-print(message)  # Привет, Мария!
-\`\`\`
-
-## 🎯 Практические советы
-
-1. **Отступы имеют значение** - в Python они заменяют фигурные скобки
-2. **Используйте осмысленные имена переменных**
-3. **Комментируйте сложные части кода**
-4. **Следуйте PEP 8** - руководству по стилю Python
-
-> **Совет:** Начните с простых программ и постепенно усложняйте задачи.`
-
-};
+// Состояние приложения
+let currentUser = null;
+let currentTopic = null;
+let currentTopics = [];
+let conversationContext = '';
 
 // DOM элементы
+const authPage = document.getElementById('auth-page');
+const mainApp = document.getElementById('main-app');
 const messagesContainer = document.getElementById('messages');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
-const themesList = document.getElementById('themes-list');
+const myTopicsList = document.getElementById('my-topics-list');
+const allTopicsList = document.getElementById('all-topics-list');
 const typingIndicator = document.getElementById('typing-indicator');
-const quickButtons = document.querySelectorAll('.quick-btn');
+const userInfo = document.getElementById('user-info');
+const currentThemeTitle = document.getElementById('current-theme-title');
+const currentThemeDescription = document.getElementById('current-theme-description');
+const searchInput = document.getElementById('search-topics');
 
-// Настройка автовысоты для textarea
-userInput.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
-});
+// Модальное окно
+const modal = document.getElementById('create-topic-modal');
+const addTopicBtn = document.getElementById('add-topic-btn');
+const closeModal = document.querySelector('.close-modal');
+const cancelBtn = document.querySelector('.cancel-btn');
+const createTopicForm = document.getElementById('create-topic-form');
 
 // Настройка marked
 marked.setOptions({
@@ -146,21 +38,282 @@ marked.setOptions({
     }
 });
 
-// Загрузка тем
-function loadThemes() {
-    themesData.themes.forEach(theme => {
-        const themeCard = document.createElement('div');
-        themeCard.className = 'theme-card';
-        themeCard.innerHTML = `
-            <h3>${theme.name}</h3>
-            <p>${theme.description}</p>
-        `;
-        themeCard.addEventListener('click', () => {
-            userInput.value = `Расскажи подробнее о теме: ${theme.name}`;
-            sendMessage();
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+    setupAuth();
+    setupEventListeners();
+    checkApiHealth();
+});
+
+// Проверка API
+async function checkApiHealth() {
+    const isHealthy = await api.healthCheck();
+    if (!isHealthy) {
+        showNotification('Ошибка подключения к серверу', 'error');
+    }
+}
+
+// Настройка авторизации
+function setupAuth() {
+    // Переключение между вкладками
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            
+            tab.classList.add('active');
+            document.getElementById(`${tab.dataset.tab}-form`).classList.add('active');
         });
-        themesList.appendChild(themeCard);
     });
+
+    // Обработка формы входа
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+
+        try {
+            showLoading(true);
+            const user = await api.login(username, password);
+            currentUser = user;
+            await loadUserData();
+            showMainApp();
+            showNotification(`Добро пожаловать, ${username}!`, 'success');
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    });
+
+    // Обработка формы регистрации
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('register-username').value;
+        const password = document.getElementById('register-password').value;
+
+        try {
+            showLoading(true);
+            await api.register(username, password);
+            showNotification('Регистрация успешна! Теперь войдите в систему.', 'success');
+            
+            // Переключаем на вкладку входа
+            document.querySelector('[data-tab="login"]').click();
+            
+            // Заполняем поля
+            document.getElementById('login-username').value = username;
+            document.getElementById('login-password').value = password;
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    });
+
+    // Выход
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        currentUser = null;
+        api.setCredentials(null, null);
+        authPage.style.display = 'flex';
+        mainApp.style.display = 'none';
+        showNotification('Вы вышли из системы', 'info');
+    });
+}
+
+// Загрузка данных пользователя
+async function loadUserData() {
+    try {
+        const [userInfo, myTopics, allTopics] = await Promise.all([
+            api.getCurrentUser(),
+            api.getMyTopics(),
+            api.getAllTopics()
+        ]);
+
+        currentUser = userInfo;
+        currentTopics = allTopics;
+
+        // Отображаем информацию о пользователе
+        displayUserInfo(userInfo);
+        
+        // Отображаем темы
+        displayMyTopics(myTopics);
+        displayAllTopics(allTopics);
+        
+    } catch (error) {
+        showNotification('Ошибка загрузки данных', 'error');
+    }
+}
+
+// Отображение информации о пользователе
+function displayUserInfo(user) {
+    userInfo.innerHTML = `
+        <div class="user-avatar">
+            <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="user-details">
+            <span class="username">${user.username}</span>
+            <span class="achievements">Достижений: ${user.achievements_count || 0}</span>
+        </div>
+    `;
+}
+
+// Отображение моих тем
+function displayMyTopics(topics) {
+    myTopicsList.innerHTML = '';
+    
+    if (topics.length === 0) {
+        myTopicsList.innerHTML = '<div class="empty-state">У вас пока нет тем. Создайте первую!</div>';
+        return;
+    }
+
+    topics.forEach(topic => {
+        const topicElement = createTopicElement(topic, true);
+        myTopicsList.appendChild(topicElement);
+    });
+}
+
+// Отображение всех тем
+function displayAllTopics(topics) {
+    allTopicsList.innerHTML = '';
+    
+    if (topics.length === 0) {
+        allTopicsList.innerHTML = '<div class="empty-state">Тем пока нет</div>';
+        return;
+    }
+
+    topics.forEach(topic => {
+        const topicElement = createTopicElement(topic, false);
+        allTopicsList.appendChild(topicElement);
+    });
+}
+
+// Создание элемента темы
+function createTopicElement(topic, isMyTopic) {
+    const div = document.createElement('div');
+    div.className = 'topic-card';
+    div.dataset.topicId = topic.id;
+    
+    div.innerHTML = `
+        <div class="topic-header">
+            <h4>${topic.title}</h4>
+            ${isMyTopic ? '<i class="fas fa-star my-topic-icon" title="Моя тема"></i>' : ''}
+        </div>
+        <p class="topic-description">${topic.description.substring(0, 100)}${topic.description.length > 100 ? '...' : ''}</p>
+        <div class="topic-meta">
+            <span class="topic-creator">
+                <i class="fas fa-user"></i> ${topic.creator_username || 'Пользователь'}
+            </span>
+            <span class="topic-date">
+                <i class="fas fa-calendar"></i> ${new Date(topic.created_at).toLocaleDateString()}
+            </span>
+        </div>
+        ${isMyTopic ? `
+            <div class="topic-actions">
+                <button class="delete-topic" onclick="deleteTopic(${topic.id})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        ` : ''}
+    `;
+    
+    div.addEventListener('click', (e) => {
+        if (!e.target.closest('.delete-topic')) {
+            selectTopic(topic);
+        }
+    });
+    
+    return div;
+}
+
+// Выбор темы для изучения
+async function selectTopic(topic) {
+    currentTopic = topic;
+    currentThemeTitle.textContent = topic.title;
+    currentThemeDescription.textContent = topic.description;
+    
+    // Очищаем чат
+    messagesContainer.innerHTML = '';
+    
+    // Добавляем приветственное сообщение
+    addAIMessage(`# ${topic.title}\n\n${topic.description}\n\nЗадавайте вопросы по этой теме, и я помогу вам разобраться!`);
+    
+    // Активируем ввод
+    userInput.disabled = false;
+    sendBtn.disabled = false;
+    userInput.focus();
+    
+    // Загружаем программу обучения из data_json если есть
+    if (topic.data_json) {
+        addAIMessage(`## Программа обучения\n\n${JSON.stringify(topic.data_json, null, 2)}`);
+    }
+}
+
+// Удаление темы
+async function deleteTopic(topicId) {
+    if (!confirm('Вы уверены, что хотите удалить эту тему?')) {
+        return;
+    }
+    
+    try {
+        await api.deleteTopic(topicId);
+        showNotification('Тема удалена', 'success');
+        await loadUserData();
+        
+        if (currentTopic && currentTopic.id === topicId) {
+            currentTopic = null;
+            currentThemeTitle.textContent = 'Выберите тему для изучения';
+            currentThemeDescription.textContent = '';
+            messagesContainer.innerHTML = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+        }
+    } catch (error) {
+        showNotification(error.message, 'error');
+    }
+}
+
+// Поиск тем
+let searchTimeout;
+searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(async () => {
+        const search = e.target.value;
+        try {
+            const topics = await api.getAllTopics(search);
+            displayAllTopics(topics);
+        } catch (error) {
+            showNotification('Ошибка поиска', 'error');
+        }
+    }, 300);
+});
+
+// Отправка сообщения
+async function sendMessage() {
+    const message = userInput.value.trim();
+    if (!message || !currentTopic) return;
+    
+    addUserMessage(message);
+    userInput.value = '';
+    userInput.style.height = 'auto';
+    
+    typingIndicator.style.display = 'flex';
+    
+    try {
+        const response = await api.learnWithAI(
+            currentTopic.title,
+            message,
+            currentTopic.description,
+            conversationContext
+        );
+        
+        // Сохраняем контекст для продолжения диалога
+        conversationContext += `\nUser: ${message}\nAI: ${response.model_response}\n`;
+        
+        addAIMessageWithTyping(response.model_response);
+    } catch (error) {
+        typingIndicator.style.display = 'none';
+        showNotification('Ошибка при получении ответа от AI', 'error');
+    }
 }
 
 // Добавление сообщения пользователя
@@ -174,30 +327,7 @@ function addUserMessage(text) {
     scrollToBottom();
 }
 
-// Добавление сообщения AI
-function addAIMessage(markdownText) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ai';
-    
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    messageDiv.appendChild(contentDiv);
-    
-    messagesContainer.appendChild(messageDiv);
-    
-    // Преобразуем Markdown в HTML
-    const htmlContent = marked.parse(markdownText);
-    contentDiv.innerHTML = htmlContent;
-    
-    // Подсветка синтаксиса
-    contentDiv.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightElement(block);
-    });
-    
-    scrollToBottom();
-}
-
-// Добавление сообщения AI с анимацией печатания
+// Добавление сообщения AI с анимацией
 function addAIMessageWithTyping(markdownText) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message ai';
@@ -208,36 +338,45 @@ function addAIMessageWithTyping(markdownText) {
     
     messagesContainer.appendChild(messageDiv);
     
-    // Начинаем анимацию печатания
     typeWriterEffect(contentDiv, markdownText);
+}
+
+// Добавление сообщения AI без анимации
+function addAIMessage(markdownText) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = marked.parse(markdownText);
+    
+    contentDiv.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+    });
+    
+    messageDiv.appendChild(contentDiv);
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
 }
 
 // Эффект печатания
 function typeWriterEffect(element, markdownText, speed = 20) {
-    typingIndicator.style.display = 'flex';
-    
-    // Сначала преобразуем Markdown в HTML
     const htmlContent = marked.parse(markdownText);
     
-    // Создаем временный элемент для извлечения текста
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
     const plainText = tempDiv.textContent || tempDiv.innerText || '';
     
     let i = 0;
-    let currentHtml = '';
     
     function type() {
         if (i < plainText.length) {
-            // Показываем пропорциональную часть HTML
             const progress = i / plainText.length;
             const htmlLength = htmlContent.length;
             const charsToShow = Math.floor(htmlLength * progress);
             
-            currentHtml = htmlContent.substring(0, charsToShow);
-            element.innerHTML = currentHtml;
+            element.innerHTML = htmlContent.substring(0, charsToShow);
             
-            // Подсвечиваем код, если он есть
             element.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
@@ -245,131 +384,120 @@ function typeWriterEffect(element, markdownText, speed = 20) {
             i++;
             setTimeout(type, speed);
         } else {
-            // Показываем полный HTML
             element.innerHTML = htmlContent;
             element.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
             typingIndicator.style.display = 'none';
-            scrollToBottom();
         }
         
         scrollToBottom();
     }
     
-    // Небольшая задержка перед началом печатания
-    setTimeout(() => {
-        type();
-    }, 300);
+    setTimeout(type, 300);
 }
 
-// Прокрутка вниз
-function scrollToBottom() {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+// Показ основного приложения
+function showMainApp() {
+    authPage.style.display = 'none';
+    mainApp.style.display = 'flex';
 }
 
-// Экранирование HTML
+// Настройка обработчиков событий
+function setupEventListeners() {
+    // Отправка сообщения
+    sendBtn.addEventListener('click', sendMessage);
+    
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    userInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+    
+    // Модальное окно
+    addTopicBtn.addEventListener('click', () => {
+        modal.style.display = 'block';
+    });
+    
+    closeModal.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    cancelBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // Создание темы
+    createTopicForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const title = document.getElementById('topic-title').value;
+        const description = document.getElementById('topic-description').value;
+        
+        try {
+            showLoading(true);
+            await api.createTopic(title, description);
+            modal.style.display = 'none';
+            createTopicForm.reset();
+            showNotification('Тема создана!', 'success');
+            await loadUserData();
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    });
+}
+
+// Вспомогательные функции
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// Имитация ответа AI
-function simulateAIResponse(userMessage) {
-    // Показываем индикатор печатания
-    typingIndicator.style.display = 'flex';
+function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function showNotification(message, type = 'info') {
+    // Создаем уведомление
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+        <span>${message}</span>
+    `;
     
+    document.body.appendChild(notification);
+    
+    // Анимация появления
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    // Удаляем через 3 секунды
     setTimeout(() => {
-        let response = `Привет! Я помогу вам изучить Python. 
-
-## Что я могу:
-- **Объяснить синтаксис Python**
-- **Показать примеры кода**
-- **Составить план обучения**
-- **Ответить на вопросы по темам слева**
-
-### Попробуйте:
-1. Выберите тему из списка слева
-2. Нажмите на кнопки быстрого доступа
-3. Задайте свой вопрос
-
-**Удачи в изучении Python!** 🐍`;
-
-        // Проверяем ключевые слова
-        for (const [keyword, aiResponse] of Object.entries(mockAIResponses)) {
-            if (userMessage.toLowerCase().includes(keyword.toLowerCase())) {
-                response = aiResponse;
-                break;
-            }
-        }
-        
-        addAIMessageWithTyping(response);
-    }, 1000);
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
 }
 
-// Отправка сообщения
-function sendMessage() {
-    const message = userInput.value.trim();
-    if (!message) return;
-    
-    addUserMessage(message);
-    userInput.value = '';
-    userInput.style.height = 'auto';
-    
-    simulateAIResponse(message);
-}
-
-// Обработчики событий
-sendBtn.addEventListener('click', sendMessage);
-
-userInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
+function showLoading(show) {
+    // Можно добавить глобальный индикатор загрузки
+    if (show) {
+        document.body.classList.add('loading');
+    } else {
+        document.body.classList.remove('loading');
     }
-});
-
-quickButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const topic = btn.dataset.topic;
-        userInput.value = `Расскажи про ${topic}`;
-        sendMessage();
-    });
-});
-
-// Добавление приветственного сообщения
-function addWelcomeMessage() {
-    const welcomeMessage = `# 👋 Добро пожаловать в учебный помощник!
-
-Я здесь, чтобы помочь вам изучить Python и составить персонализированный план обучения.
-
-## 🎯 Как это работает:
-1. **Выберите тему** из списка слева
-2. **Задайте вопрос** в поле ввода
-3. **Получите подробный ответ** с примерами кода и рекомендациями
-
-## 📚 Доступные темы:
-- Основы синтаксиса Python
-- Работа с типами данных
-- Функции и модули
-- Объектно-ориентированное программирование
-- И многое другое...
-
-> **Совет:** Начните с кнопок быстрого доступа ниже, чтобы увидеть примеры ответов.
-
-**Готовы начать?** Задайте свой первый вопрос!`;
-    
-    addAIMessage(welcomeMessage);
 }
-
-// Инициализация
-document.addEventListener('DOMContentLoaded', () => {
-    loadThemes();
-    addWelcomeMessage();
-    userInput.focus();
-});
-
-// Информация для разработки
-console.log('Интерфейс готов к работе!');
-console.log('Для подключения к бэкенду замените simulateAIResponse на реальные API-вызовы.');
