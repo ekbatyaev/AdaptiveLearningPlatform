@@ -230,22 +230,135 @@ async function selectTopic(topic) {
     currentTopic = topic;
     currentThemeTitle.textContent = topic.title;
     currentThemeDescription.textContent = topic.description;
-    
+
     // Очищаем чат
     messagesContainer.innerHTML = '';
-    
+
     // Добавляем приветственное сообщение
     addAIMessage(`# ${topic.title}\n\n${topic.description}\n\nЗадавайте вопросы по этой теме, и я помогу вам разобраться!`);
-    
+
     // Активируем ввод
     userInput.disabled = false;
     sendBtn.disabled = false;
     userInput.focus();
-    
+
     // Загружаем программу обучения из data_json если есть
     if (topic.data_json) {
-        addAIMessage(`## Программа обучения\n\n${JSON.stringify(topic.data_json, null, 2)}`);
+        // Проверяем, является ли data_json строкой или объектом
+        let programData = topic.data_json;
+        if (typeof programData === 'string') {
+            try {
+                programData = JSON.parse(programData);
+            } catch (e) {
+                console.error('Ошибка парсинга JSON:', e);
+            }
+        }
+
+        // Форматируем программу обучения в красивый Markdown
+        const formattedProgram = formatLearningProgram(programData);
+        addAIMessage(formattedProgram);
     }
+}
+
+// Функция для форматирования программы обучения
+function formatLearningProgram(data) {
+    let markdown = '## 📚 Программа обучения\n\n';
+
+    // Если данные пришли в формате { themes: [...] }
+    if (data.themes && Array.isArray(data.themes)) {
+        data.themes.forEach((theme, index) => {
+            markdown += `### ${index + 1}. ${theme.name}\n\n`;
+            markdown += `${theme.description}\n\n`;
+
+            // Добавляем иконки для визуального разделения
+            markdown += `---\n\n`;
+        });
+    }
+    // Если данные пришли как массив
+    else if (Array.isArray(data)) {
+        data.forEach((item, index) => {
+            if (item.name) {
+                markdown += `### ${index + 1}. ${item.name}\n\n`;
+                if (item.description) {
+                    markdown += `${item.description}\n\n`;
+                }
+                markdown += `---\n\n`;
+            }
+        });
+    }
+    // Если данные пришли в другом формате
+    else if (data.topics && Array.isArray(data.topics)) {
+        data.topics.forEach((topic, index) => {
+            markdown += `### ${index + 1}. ${topic.title || topic.name}\n\n`;
+            markdown += `${topic.description || ''}\n\n`;
+            markdown += `---\n\n`;
+        });
+    }
+    // Если ничего не подошло, показываем как есть, но с форматированием
+    else {
+        markdown += '```json\n' + JSON.stringify(data, null, 2) + '\n```';
+    }
+
+    return markdown;
+}
+
+// Также добавим функцию для форматирования ответов AI с подтемами
+function formatAIResponse(response) {
+    // Проверяем, содержит ли ответ JSON-подобную структуру
+    if (response.includes('"themes":') || response.includes('"name":') || response.includes('"description":')) {
+        try {
+            // Пробуем найти JSON в ответе
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const jsonData = JSON.parse(jsonMatch[0]);
+                if (jsonData.themes || Array.isArray(jsonData)) {
+                    // Заменяем JSON на отформатированную версию
+                    const formatted = formatLearningProgram(jsonData);
+                    response = response.replace(jsonMatch[0], formatted);
+                }
+            }
+        } catch (e) {
+            console.error('Ошибка форматирования ответа:', e);
+        }
+    }
+    return response;
+}
+
+// Обновим функцию addAIMessageWithTyping
+function addAIMessageWithTyping(markdownText) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    messageDiv.appendChild(contentDiv);
+
+    messagesContainer.appendChild(messageDiv);
+
+    // Форматируем текст перед отображением
+    const formattedText = formatAIResponse(markdownText);
+    typeWriterEffect(contentDiv, formattedText);
+}
+
+// Обновим функцию addAIMessage
+function addAIMessage(markdownText) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+
+    // Форматируем текст перед отображением
+    const formattedText = formatAIResponse(markdownText);
+    contentDiv.innerHTML = marked.parse(formattedText);
+
+    contentDiv.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+    });
+
+    messageDiv.appendChild(contentDiv);
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
 }
 
 // Удаление темы
@@ -299,17 +412,26 @@ async function sendMessage() {
     typingIndicator.style.display = 'flex';
     
     try {
+        if (conversationContext.length > 5000) {
+            conversationContext = conversationContext.slice(-5000);
+            const messages = conversationContext.split('\n\n');
+            if (messages.length > 10) {
+                conversationContext = messages.slice(-10).join('\n\n');
+            }
+        }
         const response = await api.learnWithAI(
             currentTopic.title,
             message,
             currentTopic.description,
             conversationContext
         );
+
+        console.log(response)
         
         // Сохраняем контекст для продолжения диалога
-        conversationContext += `\nUser: ${message}\nAI: ${response.model_response}\n`;
+        conversationContext += `\nUser: ${message}\nAI: ${response.answer}\n`;
         
-        addAIMessageWithTyping(response.model_response);
+        addAIMessageWithTyping(response.answer);
     } catch (error) {
         typingIndicator.style.display = 'none';
         showNotification('Ошибка при получении ответа от AI', 'error');

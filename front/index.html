@@ -21,7 +21,7 @@
                     <h1>AdaptiveLearningPlatform</h1>
                     <p>Образовательная ИИ-платформа</p>
                 </div>
-                
+
                 <div class="auth-tabs">
                     <button class="auth-tab active" data-tab="login">Вход</button>
                     <button class="auth-tab" data-tab="register">Регистрация</button>
@@ -33,13 +33,13 @@
                         <label for="login-username">
                             <i class="fas fa-user"></i> Имя пользователя
                         </label>
-                        <input type="text" id="login-username" required placeholder="Введите имя пользователя">
+                        <input type="text" id="login-username" name="username" required placeholder="Введите имя пользователя">
                     </div>
                     <div class="form-group">
                         <label for="login-password">
                             <i class="fas fa-lock"></i> Пароль
                         </label>
-                        <input type="password" id="login-password" required placeholder="Введите пароль">
+                        <input type="password" id="login-password" name="password" required placeholder="Введите пароль">
                     </div>
                     <button type="submit" class="auth-submit">
                         Войти <i class="fas fa-arrow-right"></i>
@@ -52,13 +52,13 @@
                         <label for="register-username">
                             <i class="fas fa-user"></i> Имя пользователя
                         </label>
-                        <input type="text" id="register-username" required minlength="3" placeholder="От 3 символов">
+                        <input type="text" id="register-username" name="username" required minlength="3" placeholder="От 3 символов">
                     </div>
                     <div class="form-group">
                         <label for="register-password">
                             <i class="fas fa-lock"></i> Пароль
                         </label>
-                        <input type="password" id="register-password" required minlength="6" placeholder="От 6 символов">
+                        <input type="password" id="register-password" name="password" required minlength="6" placeholder="От 6 символов">
                     </div>
                     <button type="submit" class="auth-submit">
                         Зарегистрироваться <i class="fas fa-user-plus"></i>
@@ -74,37 +74,39 @@
                 <div class="sidebar-header">
                     <h2><i class="fas fa-graduation-cap"></i> AdaptiveLearning</h2>
                     <div class="user-info" id="user-info">
-                        <!-- Информация о пользователе -->
+                        <!-- Информация о пользователе будет вставлена через JS -->
                     </div>
                 </div>
-                
+
                 <div class="sidebar-section">
                     <div class="section-header">
                         <h3><i class="fas fa-book"></i> Мои темы</h3>
-                        <button class="add-topic-btn" id="add-topic-btn">
+                        <button class="add-topic-btn" id="add-topic-btn" title="Создать новую тему">
                             <i class="fas fa-plus"></i> Создать
                         </button>
                     </div>
                     <div id="my-topics-list" class="topics-list">
-                        <!-- Мои темы -->
+                        <!-- Мои темы будут загружены через JS -->
+                        <div class="empty-state">Загрузка тем...</div>
                     </div>
                 </div>
 
                 <div class="sidebar-section">
                     <div class="section-header">
                         <h3><i class="fas fa-globe"></i> Все темы</h3>
-                        <div class="search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" id="search-topics" placeholder="Поиск...">
-                        </div>
+                    </div>
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-topics" placeholder="Поиск тем...">
                     </div>
                     <div id="all-topics-list" class="topics-list">
-                        <!-- Все темы -->
+                        <!-- Все темы будут загружены через JS -->
+                        <div class="empty-state">Загрузка тем...</div>
                     </div>
                 </div>
 
                 <div class="sidebar-footer">
-                    <button class="logout-btn" id="logout-btn">
+                    <button class="logout-btn" id="logout-btn" title="Выйти из аккаунта">
                         <i class="fas fa-sign-out-alt"></i> Выйти
                     </button>
                 </div>
@@ -119,7 +121,11 @@
                     </div>
 
                     <div class="messages" id="messages">
-                        <!-- Сообщения -->
+                        <!-- Сообщения будут добавляться через JS -->
+                        <div class="empty-chat-message">
+                            <i class="fas fa-comment-dots"></i>
+                            <p>Выберите тему из списка слева, чтобы начать обучение</p>
+                        </div>
                     </div>
 
                     <div class="input-area">
@@ -131,15 +137,15 @@
                             </div>
                             <span class="typing-text">AI печатает ответ...</span>
                         </div>
-                        
+
                         <div class="input-wrapper">
-                            <textarea 
-                                id="user-input" 
-                                placeholder="Задайте вопрос по теме..." 
+                            <textarea
+                                id="user-input"
+                                placeholder="Сначала выберите тему для изучения..."
                                 rows="1"
                                 disabled
                             ></textarea>
-                            <button id="send-btn" class="send-button" disabled>
+                            <button id="send-btn" class="send-button" disabled title="Отправить сообщение">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
@@ -150,24 +156,32 @@
     </div>
 
     <!-- Модальное окно создания темы -->
-    <div id="create-topic-modal" class="modal" style="display: none;">
+    <div id="create-topic-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Создать новую тему</h3>
-                <button class="close-modal">&times;</button>
+                <div class="modal-title">
+                    <i class="fas fa-book-medical"></i>
+                    <h3>Создать новую тему</h3>
+                </div>
+                <button class="close-modal" title="Закрыть">&times;</button>
             </div>
+            <p class="modal-subtitle">
+                Опишите тему, которую хотите изучать. Вы сможете задавать вопросы AI по ней.
+            </p>
             <form id="create-topic-form">
                 <div class="form-group">
                     <label for="topic-title">Название темы</label>
-                    <input type="text" id="topic-title" required placeholder="Например: Python для начинающих">
+                    <input type="text" id="topic-title" name="title" required maxlength="80" placeholder="Например: Python для начинающих">
                 </div>
                 <div class="form-group">
                     <label for="topic-description">Описание</label>
-                    <textarea id="topic-description" required placeholder="Опишите, что хотите изучить..." rows="4"></textarea>
+                    <textarea id="topic-description" name="description" required maxlength="500" placeholder="Опишите, что хотите изучить..." rows="4"></textarea>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="cancel-btn">Отмена</button>
-                    <button type="submit" class="submit-btn">Создать тему</button>
+                    <button type="submit" class="accept-btn">
+                        <i class="fas fa-plus"></i> Создать тему
+                    </button>
                 </div>
             </form>
         </div>

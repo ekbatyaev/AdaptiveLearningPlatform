@@ -57,13 +57,6 @@ class UserThemeLearning(BaseModel):
     additional_info: str
     old_context: str
 
-
-class UserThemeLearningResponse(BaseModel):
-    model_response: str
-
-    class Config:
-        from_attributes = True
-
 class TopicFinalTest(BaseModel):
     username: str
     password: str
@@ -271,10 +264,15 @@ def create_topic(
         db: Session = Depends(get_db)
 ):
     try:
-        data_json = generate_learning_program(title = topic_data.title, description = topic_data.description)
+        data_json = generate_learning_program(
+            title=topic_data.title,
+            description=topic_data.description
+        )
     except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
+        raise HTTPException(
+            status_code=500,
+            detail=f"Learning program generation failed: {str(e)}"
+        )
     """
     Создание новой темы
     """
@@ -310,7 +308,7 @@ def create_topic(
 
     return TopicResponse(**response_dict)
 
-@app.post("/theme_learning", response_model=UserThemeLearningResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/theme_learning", status_code=status.HTTP_201_CREATED)
 def get_theme_learning_conversation(
         topic_data: UserThemeLearning,
         current_user: User = Depends(get_current_user),
@@ -320,15 +318,17 @@ def get_theme_learning_conversation(
     current_user.last_used = datetime.utcnow()
     db.commit()
     db.refresh(current_user)
-
+    print("user_request: ", topic_data.user_request)
+    print("theme_name: ", topic_data.theme_name)
+    print("additional_info: ", topic_data.additional_info)
+    print("old_context: ", topic_data.old_context)
     try:
-        model_response = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
+        answer = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
                                   additional_info = topic_data.additional_info, old_context = topic_data.old_context)
+        return answer
     except Exception as e:
         print("Ошибка: ", e)
         return {"model_response": True}
-
-    return UserThemeLearningResponse(**model_response)
 
 
 @app.get("/topics", response_model=List[TopicResponse])

@@ -1,10 +1,12 @@
 import os
 import json
+import re
+
 import openai
 from pathlib import Path
 from typing import Dict
 from dotenv import load_dotenv
-from .sub_functions import extract_json_text
+from app.llm.sub_functions import extract_json_text
 
 ENV_PATH = Path(".env")
 
@@ -15,16 +17,22 @@ base_url = os.getenv("YANDEX_BASE_URL")
 folder_id = os.getenv("YANDEX_PROJECT_ID")
 model = os.getenv("MODEL_NAME")
 
-JSON_SCHEMA = {
-    "name": "ai-professor",
-    "strict": True,
-    "schema": {
-        "type": "string",
-        "title": "Answer",
-        "answer": "Ответ нейросети",
-        "additionalProperties": False
-        }
-}
+# JSON_SCHEMA = {
+#     "name": "ai-professor",
+#     "strict": True,
+#     "schema": {
+#         "type": "json",
+#         "properties": {
+#             "answer": {
+#                 "type": "string",
+#                 "title": "Answer",
+#                 "description": "Ответ нейросети"
+#             }
+#         },
+#         "required": ["answer"],
+#         "additionalProperties": False
+#     }
+# }
 
 SYSTEM_PROMPT = \
 """
@@ -71,38 +79,39 @@ SYSTEM_PROMPT = \
 
 Ответ:
 
-🎯 **Суть:** Цифровой дневник, который все видят, но никто не может подделать.
+**Суть:** Цифровой дневник, который все видят, но никто не может подделать.
 
-🔄 **Как работает:**
+**Как работает:**
+
 Представь класс, где все ведут один конспект. 
 1. Кто-то добавляет новую запись
 2. Все проверяют её
 3. Если всё верно — запись добавляется у всех
 4. Прежние записи нельзя изменить
 
-📊 **Пример:** Как реестр квартир — все знают, кто владелец, и это нельзя скрыть.
+**Пример:** Как реестр квартир — все знают, кто владелец, и это нельзя скрыть.
 
-🛠️ **Применение:** Криптовалюты, документооборот, голосования.
+**Применение:** Криптовалюты, документооборот, голосования.
 
-❓ **Проверка:** Если бы блокчейн был библиотекой, кто бы был библиотекарем?
+**Проверка:** Если бы блокчейн был библиотекой, кто бы был библиотекарем?
 
 НИ В КОЕМ СЛУЧАЙ НЕ ДЕЛАЙ:
 -Не сыпь терминами без объяснения
 -Не перегружай информацией
 -Не оставляй без обратной связи
 
-ФОРМАТ ОТВЕТА:
-
-```
-{"answer": "..."
-```
+ФОРМАТ ОТВЕТА — строго одна строка без переносов внутри JSON:
+{"answer": "..."}
 """
+
+
 def learning_with_llm_request(user_request, theme_name, additional_info, old_context) -> Dict:
     client = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
         project=folder_id
     )
+
 
     response = client.responses.create(
             model=f"gpt://{folder_id}/{model}/rc",
@@ -120,11 +129,13 @@ def learning_with_llm_request(user_request, theme_name, additional_info, old_con
                                 ```
                                 {user_request}
                                 ```
+                                
                                 Название темы урока:
                                 
                                 ```
                                 {theme_name}
                                 ```
+                                
                                 Описание темы урока:
                                 
                                 ```
@@ -136,19 +147,22 @@ def learning_with_llm_request(user_request, theme_name, additional_info, old_con
                                 ```
                                 {old_context}
                                 ```
+                                
                                 """
                             )
                         }
                     ],
                 }
-            ],
-            extra_body={
-                "json_schema": JSON_SCHEMA,
-            },
+            ]
+            # extra_body={
+            #     "json_schema": JSON_SCHEMA,
+            # },
         )
 
     raw_output = response.output_text or ""
+
     json_text = extract_json_text(raw_output)
+
     try:
         parsed = json.loads(json_text)
         return parsed
@@ -160,4 +174,5 @@ def learning_with_llm_request(user_request, theme_name, additional_info, old_con
         return {"error": True}
 
 if __name__ == "__main__":
-    print(learning_with_llm_request(user_request="", theme_name="Основы синтаксиса Python", additional_info="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ.", old_context = ""))
+    text_json = learning_with_llm_request(user_request="", theme_name="Основы синтаксиса Python", additional_info="Изучение основных элементов синтаксиса Python: переменные, операторы, условия, циклы. Приобретение навыков написания простых программ.", old_context = "")
+    print(text_json)
