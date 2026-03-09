@@ -1,4 +1,5 @@
 // Состояние приложения
+let currentSubtopic = null;
 let currentUser = null;
 let currentTopic = null;
 let currentTopics = [];
@@ -228,6 +229,7 @@ function createTopicElement(topic, isMyTopic) {
 // Выбор темы для изучения
 async function selectTopic(topic) {
     currentTopic = topic;
+    currentSubtopic = null;
     currentThemeTitle.textContent = topic.title;
     currentThemeDescription.textContent = topic.description;
 
@@ -235,7 +237,9 @@ async function selectTopic(topic) {
     messagesContainer.innerHTML = '';
 
     // Добавляем приветственное сообщение
-    addAIMessage(`# ${topic.title}\n\n${topic.description}\n\nЗадавайте вопросы по этой теме, и я помогу вам разобраться!`);
+    addAIMessage(`# ${topic.title}\n\n${topic.description}\n\nВыберите подтему для изучения:`);
+
+    displaySubtopics(topic.data_json);
 
     // Активируем ввод
     userInput.disabled = false;
@@ -258,6 +262,62 @@ async function selectTopic(topic) {
         const formattedProgram = formatLearningProgram(programData);
         addAIMessage(formattedProgram);
     }
+}
+
+// функция для отображения подтем
+function displaySubtopics(dataJson) {
+    const container = document.getElementById('subtopics-container');
+    const list = document.getElementById('subtopics-list');
+    
+    if (!dataJson || !dataJson.themes || dataJson.themes.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    list.innerHTML = '';
+    dataJson.themes.forEach((subtopic, index) => {
+        const subtopicElement = document.createElement('div');
+        subtopicElement.className = 'subtopic-item';
+        subtopicElement.innerHTML = `
+            <div class="subtopic-header">
+                <span class="subtopic-name">${subtopic.name}</span>
+                <button class="subtopic-test-btn" data-subtopic-index="${index}">
+                    📝 Пройти тест
+                </button>
+            </div>
+            <div class="subtopic-description">${subtopic.description}</div>
+        `;
+        
+        // Клик на название или описание выбирает подтему
+        subtopicElement.querySelector('.subtopic-name').addEventListener('click', () => {
+            selectSubtopic(subtopic);
+        });
+        
+        subtopicElement.querySelector('.subtopic-description').addEventListener('click', () => {
+            selectSubtopic(subtopic);
+        });
+        
+        // Клик на кнопку теста
+        subtopicElement.querySelector('.subtopic-test-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            takeSubtopicTest(subtopic);
+        });
+        
+        list.appendChild(subtopicElement);
+    });
+    
+    container.style.display = 'block';
+}
+
+// Функция выбора подтемы
+function selectSubtopic(subtopic) {
+    currentSubtopic = subtopic;
+    
+    // Добавляем сообщение о выбранной подтеме
+    addAIMessage(`✅ **Выбрана подтема:** ${subtopic.name}\n\n${subtopic.description}\n\nТеперь вы можете задавать вопросы по этой теме.`);
+    
+    // Прокручиваем к чату
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 // Функция для форматирования программы обучения
@@ -419,22 +479,85 @@ async function sendMessage() {
                 conversationContext = messages.slice(-10).join('\n\n');
             }
         }
+        // Определяем, по какой теме общаемся (подтема или основная тема)
+        const themeName = currentSubtopic ? currentSubtopic.name : currentTopic.title;
+        const additionalInfo = currentSubtopic ? currentSubtopic.description : currentTopic.description;
+        
+        console.log('Отправка запроса:', {
+            themeName,
+            additionalInfo,
+            message
+        });
+
         const response = await api.learnWithAI(
-            currentTopic.title,
+            themeName,
             message,
-            currentTopic.description,
+            additionalInfo,
             conversationContext
         );
 
-        console.log(response)
+        console.log('Ответ от API:', response);
         
+        let aiResponse = '';
+        if (response.answer) {
+            aiResponse = response.answer;
+        } else if (response.model_response) {
+            aiResponse = response.model_response;
+        } else if (typeof response === 'string') {
+            aiResponse = response;
+        } else {
+            aiResponse = JSON.stringify(response);
+        }
+
         // Сохраняем контекст для продолжения диалога
-        conversationContext += `\nUser: ${message}\nAI: ${response.answer}\n`;
+        conversationContext += `\nUser: ${message}\nAI: ${aiResponse}\n`;
         
-        addAIMessageWithTyping(response.answer);
+        addAIMessageWithTyping(aiResponse);
     } catch (error) {
         typingIndicator.style.display = 'none';
         showNotification('Ошибка при получении ответа от AI', 'error');
+        console.error('Send message error:', error);
+    }
+}
+
+// Новая функция для прохождения теста по подтеме
+async function takeSubtopicTest(subtopic) {
+    if (!currentTopic) return;
+    
+    typingIndicator.style.display = 'flex';
+    
+    try {
+        // Добавляем сообщение о начале теста
+        addAIMessage(`📝 **Запрашиваю тест по теме:** ${subtopic.name}...`);
+        
+        // Вызываем эндпоинт для теста
+        const response = await fetch(`${API_BASE_URL}/get_final_theme_test`, {
+            method: 'POST',
+            headers: api.getHeaders(),
+            body: JSON.stringify({
+                username: api.username,
+                password: api.password,
+                title: subtopic.name,
+                description: subtopic.description
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Ошибка получения теста');
+        }
+        
+        const data = await response.json();
+        
+        // Убираем индикатор печатания
+        typingIndicator.style.display = 'none';
+        
+        // Выводим тест в чат
+        addAIMessage(`## 📋 Тест: ${subtopic.name}\n\n${data.model_response || data.answer}`);
+        
+    } catch (error) {
+        typingIndicator.style.display = 'none';
+        showNotification('Ошибка при получении теста', 'error');
+        console.error('Test error:', error);
     }
 }
 

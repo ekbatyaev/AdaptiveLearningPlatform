@@ -934,3 +934,77 @@ body.loading::before {
         gap: 5px;
     }
 }
+
+/* Стили для подтем */
+.subtopics-container {
+    padding: 15px 24px;
+    background: #f9f9f9;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.subtopics-container h3 {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.subtopics-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.subtopic-item {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    width: calc(50% - 5px);
+    min-width: 250px;
+    transition: all 0.2s;
+}
+
+.subtopic-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.subtopic-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.subtopic-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.subtopic-name:hover {
+    color: var(--primary-color);
+}
+
+.subtopic-test-btn {
+    background: none;
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.subtopic-test-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.subtopic-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    cursor: pointer;
+}
