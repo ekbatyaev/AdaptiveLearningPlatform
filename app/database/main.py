@@ -63,13 +63,6 @@ class TopicFinalTest(BaseModel):
     title: str
     description: str
 
-
-class TopicFinalTestResponse(BaseModel):
-    model_response: str
-
-    class Config:
-        from_attributes = True
-
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -236,7 +229,7 @@ def get_user_by_id(
 
 # Ручки для тем
 
-@app.post("/get_final_theme_test", response_model=TopicFinalTestResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/get_final_theme_test",  status_code=status.HTTP_201_CREATED)
 def get_final_test(
         topic_data: TopicFinalTest,
         current_user: User = Depends(get_current_user),
@@ -254,7 +247,7 @@ def get_final_test(
         print("Ошибка: ", e)
         return {"model_response": True}
 
-    return TopicFinalTestResponse(**model_response)
+    return model_response
 
 
 @app.post("/create_topic", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)

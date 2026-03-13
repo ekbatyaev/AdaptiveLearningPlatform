@@ -239,7 +239,17 @@ async function selectTopic(topic) {
     // Добавляем приветственное сообщение
     addAIMessage(`# ${topic.title}\n\n${topic.description}\n\nВыберите подтему для изучения:`);
 
-    displaySubtopics(topic.data_json);
+    let programData = topic.data_json;
+
+    if (typeof programData === 'string') {
+        try {
+            programData = JSON.parse(programData);
+        } catch (e) {
+            console.error('Ошибка парсинга JSON:', e);
+        }
+    }
+
+    displaySubtopics(programData);
 
     // Активируем ввод
     userInput.disabled = false;
@@ -268,6 +278,8 @@ async function selectTopic(topic) {
 function displaySubtopics(dataJson) {
     const container = document.getElementById('subtopics-container');
     const list = document.getElementById('subtopics-list');
+    const content = document.getElementById('subtopics-content');
+    const toggleBtn = document.getElementById('toggle-subtopics-btn');
     
     if (!dataJson || !dataJson.themes || dataJson.themes.length === 0) {
         container.style.display = 'none';
@@ -305,18 +317,24 @@ function displaySubtopics(dataJson) {
         
         list.appendChild(subtopicElement);
     });
-    
+
+
     container.style.display = 'block';
+    content.style.display = 'none';
+    toggleBtn.textContent = '📚 Показать подтемы';
 }
 
 // Функция выбора подтемы
 function selectSubtopic(subtopic) {
     currentSubtopic = subtopic;
-    
-    // Добавляем сообщение о выбранной подтеме
+
+//    // скрываем список подтем
+//    const container = document.getElementById('subtopics-container');
+//    container.style.display = 'none';
+
+    // сообщение о выбранной подтеме
     addAIMessage(`✅ **Выбрана подтема:** ${subtopic.name}\n\n${subtopic.description}\n\nТеперь вы можете задавать вопросы по этой теме.`);
-    
-    // Прокручиваем к чату
+
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
@@ -650,6 +668,22 @@ function showMainApp() {
 
 // Настройка обработчиков событий
 function setupEventListeners() {
+
+    const toggleBtn = document.getElementById('toggle-subtopics-btn');
+    const subtopicsContent = document.getElementById('subtopics-content');
+
+    toggleBtn.addEventListener('click', () => {
+
+        if (subtopicsContent.style.display === 'none') {
+            subtopicsContent.style.display = 'block';
+            toggleBtn.textContent = '📚 Скрыть подтемы';
+        } else {
+            subtopicsContent.style.display = 'none';
+            toggleBtn.textContent = '📚 Показать подтемы';
+        }
+
+    });
+
     // Отправка сообщения
     sendBtn.addEventListener('click', sendMessage);
     

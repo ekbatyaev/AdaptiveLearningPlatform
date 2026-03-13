@@ -940,6 +940,9 @@ body.loading::before {
     padding: 15px 24px;
     background: #f9f9f9;
     border-bottom: 1px solid var(--border-color);
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 10px;
 }
 
 .subtopics-container h3 {
@@ -1007,4 +1010,19 @@ body.loading::before {
     color: var(--text-secondary);
     line-height: 1.5;
     cursor: pointer;
+}
+
+.toggle-subtopics-btn{
+    background: #4f46e5;
+    color:white;
+    border:none;
+    padding:8px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    margin-bottom:10px;
+    font-size:14px;
+}
+
+.toggle-subtopics-btn:hover{
+    background:#4338ca;
 }

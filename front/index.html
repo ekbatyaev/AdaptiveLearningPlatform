@@ -102,6 +102,7 @@
                     <div id="all-topics-list" class="topics-list">
                         <!-- Все темы будут загружены через JS -->
                         <div class="empty-state">Загрузка тем...</div>
+                        <div class="empty-state">Загрузка тем...</div>
                     </div>
                 </div>
 
@@ -119,11 +120,17 @@
                         <h2 id="current-theme-title">Выберите тему для изучения</h2>
                         <p id="current-theme-description" class="theme-description"></p>
                     </div>
-                    <div class="subtopics-container" id="subtopics-container" style="display: none;">
-                        <h3>📚 Подтемы:</h3>
-                        <div id="subtopics-list" class="subtopics-list">
-                            <!-- Сюда будут добавляться кнопки подтем -->
+
+                    <div class="subtopics-container" id="subtopics-container" style="display:none;">
+                        <button id="toggle-subtopics-btn" class="toggle-subtopics-btn">
+                            📚 Показать подтемы
+                        </button>
+
+                        <div id="subtopics-content" style="display:none;">
+                            <h3>Подтемы:</h3>
+                            <div id="subtopics-list" class="subtopics-list"></div>
                         </div>
+
                     </div>
                     <div class="messages" id="messages">
                         <!-- Сообщения будут добавляться через JS -->
