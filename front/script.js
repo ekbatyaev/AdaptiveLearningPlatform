@@ -565,13 +565,16 @@ async function takeSubtopicTest(subtopic) {
         }
         
         const data = await response.json();
-        
-        // Убираем индикатор печатания
+        const questions = data.test;
+
         typingIndicator.style.display = 'none';
-        
-        // Выводим тест в чат
-        addAIMessage(`## 📋 Тест: ${subtopic.name}\n\n${data.model_response || data.answer}`);
-        
+
+        const combined_questions = questions
+          .map(q => `**${q.name}:** ${q.description}`)
+          .join('\n\n');
+
+        addAIMessage(`## 📋 Тест по теме: ${data.title}\n## 🗂 Описание: ${data.description}\n\n${combined_questions}`);
+
     } catch (error) {
         typingIndicator.style.display = 'none';
         showNotification('Ошибка при получении теста', 'error');
