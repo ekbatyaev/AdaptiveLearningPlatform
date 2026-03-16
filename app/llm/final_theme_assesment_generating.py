@@ -4,7 +4,7 @@ import openai
 from pathlib import Path
 from typing import Dict
 from dotenv import load_dotenv
-from .sub_functions import extract_json_text
+from app.llm.sub_functions import extract_json_text
 
 ENV_PATH = Path(".env")
 
@@ -19,9 +19,15 @@ JSON_SCHEMA = {
     "name": "ai-professor",
     "strict": True,
     "schema": {
-        "type": "string",
-        "title": "Answer",
-        "answer": "Ответ нейросети",
+        "type": "object",
+        "properties": {
+            "answer": {
+                "type": "string",
+                "title": "Answer",
+                "description": "Ответ нейросети"
+            }
+        },
+        "required": ["answer"],
         "additionalProperties": False
     }
 }
@@ -114,7 +120,9 @@ def final_theme_test(title, description) -> Dict:
     )
 
     raw_output = response.output_text or ""
+
     json_text = extract_json_text(raw_output)
+    parsed = {}
     try:
         parsed = json.loads(json_text)
         return parsed
@@ -123,7 +131,7 @@ def final_theme_test(title, description) -> Dict:
         print(
             f"Полученный ответ не соответствует JSON-схеме: {error}\nТекст ответа:\n{json_text}"
         )
-        return {"error": True}
+        return parsed
 
 
 if __name__ == "__main__":

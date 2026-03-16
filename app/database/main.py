@@ -12,6 +12,11 @@ from .connection_to_database import init_db, get_db
 from app.llm.theme_learning_requests import learning_with_llm_request
 from app.llm.study_program_generating import generate_learning_program
 from app.llm.final_theme_assesment_generating import final_theme_test
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
+from fastapi import Request
+from fastapi.responses import Response
 
 # Создаем приложение
 app = FastAPI(
@@ -19,6 +24,8 @@ app = FastAPI(
     description="API для управления пользователями и темами",
     version="1.0.0"
 )
+
+app.mount("/front", StaticFiles(directory="front"), name="front")
 
 # Настройка CORS
 app.add_middleware(
@@ -127,12 +134,24 @@ def get_current_user(username: str = Header(...), password: str = Header(...), d
     return user
 
 
+# Отключаем кэширование для более удобной и хорошей работы
+@app.middleware("http")
+async def no_cache_middleware(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 # Инициализация базы данных при запуске
 @app.on_event("startup")
 def startup_event():
     """Инициализация при запуске"""
     init_db()
     print("Database initialized")
+
+# Отображение главной старницы информационной системы
+@app.get("/")
+def root():
+    return FileResponse("front/index.html")
 
 
 # Ручки для пользователей
@@ -238,16 +257,20 @@ def get_final_test(
     current_user.last_used = datetime.utcnow()
     db.commit()
     db.refresh(current_user)
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = final_theme_test(
+                title=topic_data.title,
+                description=topic_data.description
+            )
+            return model_response
 
-    try:
-        model_response = final_theme_test(title = topic_data.title,
-                         description = topic_data.description)
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
 
-    except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
-
-    return model_response
+    return {"error": "model failed after 3 attempts"}
 
 
 @app.post("/create_topic", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)
@@ -256,6 +279,7 @@ def create_topic(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+
     try:
         data_json = generate_learning_program(
             title=topic_data.title,
@@ -315,13 +339,19 @@ def get_theme_learning_conversation(
     print("theme_name: ", topic_data.theme_name)
     print("additional_info: ", topic_data.additional_info)
     print("old_context: ", topic_data.old_context)
-    try:
-        answer = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
+
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
                                   additional_info = topic_data.additional_info, old_context = topic_data.old_context)
-        return answer
-    except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
+            return model_response
+
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
+
+    return {"error": "model failed after 3 attempts"}
 
 
 @app.get("/topics", response_model=List[TopicResponse])
