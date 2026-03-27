@@ -1,24 +1,23 @@
-// Конфигурация API
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
-// Класс для работы с API
 class ApiClient {
     constructor() {
         this.username = null;
         this.password = null;
     }
 
-    // Установка учетных данных
     setCredentials(username, password) {
         this.username = username;
         this.password = password;
     }
 
-    // Получение заголовков для авторизации
     getHeaders() {
         if (!this.username || !this.password) {
-            return {};
+            return {
+                'Content-Type': 'application/json'
+            };
         }
+
         return {
             'username': this.username,
             'password': this.password,
@@ -26,7 +25,6 @@ class ApiClient {
         };
     }
 
-    // Регистрация пользователя
     async register(username, password) {
         const response = await fetch(`${API_BASE_URL}/user_register`, {
             method: 'POST',
@@ -42,7 +40,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Вход пользователя
     async login(username, password) {
         const response = await fetch(`${API_BASE_URL}/user_login`, {
             method: 'POST',
@@ -60,7 +57,6 @@ class ApiClient {
         return userData;
     }
 
-    // Получение информации о себе
     async getCurrentUser() {
         const response = await fetch(`${API_BASE_URL}/users/info`, {
             headers: this.getHeaders()
@@ -73,7 +69,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Получение всех тем
     async getAllTopics(search = '') {
         let url = `${API_BASE_URL}/topics`;
         if (search) {
@@ -81,7 +76,7 @@ class ApiClient {
         }
 
         const response = await fetch(url);
-        
+
         if (!response.ok) {
             throw new Error('Ошибка получения тем');
         }
@@ -89,7 +84,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Получение своих тем
     async getMyTopics() {
         const response = await fetch(`${API_BASE_URL}/users/me/topics`, {
             headers: this.getHeaders()
@@ -102,15 +96,14 @@ class ApiClient {
         return await response.json();
     }
 
-    // Создание темы
     async createTopic(title, description) {
         const response = await fetch(`${API_BASE_URL}/create_topic`, {
             method: 'POST',
             headers: this.getHeaders(),
-            body: JSON.stringify({ 
-                title, 
+            body: JSON.stringify({
+                title,
                 description,
-                data_json: {} 
+                data_json: {}
             })
         });
 
@@ -122,10 +115,9 @@ class ApiClient {
         return await response.json();
     }
 
-    // Получение темы по ID
     async getTopicById(topicId) {
         const response = await fetch(`${API_BASE_URL}/topics/get_info_${topicId}`);
-        
+
         if (!response.ok) {
             throw new Error('Ошибка получения темы');
         }
@@ -133,7 +125,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Обучение с AI
     async learnWithAI(themeName, userRequest, additionalInfo = '', oldContext = '') {
         const response = await fetch(`${API_BASE_URL}/theme_learning`, {
             method: 'POST',
@@ -156,7 +147,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Получение финального теста
     async getFinalTest(title, description) {
         const response = await fetch(`${API_BASE_URL}/get_final_theme_test`, {
             method: 'POST',
@@ -177,7 +167,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Удаление темы
     async deleteTopic(topicId) {
         const response = await fetch(`${API_BASE_URL}/topics/delete_${topicId}`, {
             method: 'DELETE',
@@ -192,7 +181,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Обновление темы
     async updateTopic(topicId, title, description) {
         const response = await fetch(`${API_BASE_URL}/topics/update_${topicId}`, {
             method: 'PUT',
@@ -208,10 +196,9 @@ class ApiClient {
         return await response.json();
     }
 
-    // Получение статистики
     async getStats() {
         const response = await fetch(`${API_BASE_URL}/stats`);
-        
+
         if (!response.ok) {
             throw new Error('Ошибка получения статистики');
         }
@@ -219,7 +206,6 @@ class ApiClient {
         return await response.json();
     }
 
-    // Проверка здоровья API
     async healthCheck() {
         try {
             const response = await fetch(`${API_BASE_URL}/health`);
@@ -230,5 +216,4 @@ class ApiClient {
     }
 }
 
-// Создаем глобальный экземпляр API клиента
 const api = new ApiClient();

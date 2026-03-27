@@ -109,7 +109,7 @@ def generate_learning_program(title, description) -> Dict:
     )
 
     response = client.responses.create(
-        model=f"gpt://{folder_id}/{model}/rc",
+        model=f"gpt://{folder_id}/{model}",
         instructions=SYSTEM_PROMPT,
         input=[
             {

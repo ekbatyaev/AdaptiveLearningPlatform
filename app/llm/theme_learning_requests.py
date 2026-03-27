@@ -136,7 +136,7 @@ def learning_with_llm_request(user_request, theme_name, additional_info, old_con
 
 
     response = client.responses.create(
-            model=f"gpt://{folder_id}/{model}/rc",
+            model=f"gpt://{folder_id}/{model}",
             instructions=SYSTEM_PROMPT,
             input=[
                 {

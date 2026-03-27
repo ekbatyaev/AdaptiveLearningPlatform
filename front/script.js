@@ -1,11 +1,10 @@
-// Состояние приложения
 let currentSubtopic = null;
 let currentUser = null;
 let currentTopic = null;
 let currentTopics = [];
 let conversationContext = '';
+let shouldAutoScroll = true;
 
-// DOM элементы
 const authPage = document.getElementById('auth-page');
 const mainApp = document.getElementById('main-app');
 const messagesContainer = document.getElementById('messages');
@@ -18,20 +17,32 @@ const userInfo = document.getElementById('user-info');
 const currentThemeTitle = document.getElementById('current-theme-title');
 const currentThemeDescription = document.getElementById('current-theme-description');
 const searchInput = document.getElementById('search-topics');
+const subtopicsContainer = document.getElementById('subtopics-container');
+const subtopicsList = document.getElementById('subtopics-list');
+const subtopicsContent = document.getElementById('subtopics-content');
+const toggleSubtopicsBtn = document.getElementById('toggle-subtopics-btn');
+const themeChip = document.getElementById('theme-chip');
+const themeChipText = document.getElementById('theme-chip-text');
 
-// Модальное окно
 const modal = document.getElementById('create-topic-modal');
 const addTopicBtn = document.getElementById('add-topic-btn');
-const closeModal = document.querySelector('.close-modal');
+const closeModalBtn = document.querySelector('.close-modal');
 const cancelBtn = document.querySelector('.cancel-btn');
 const createTopicForm = document.getElementById('create-topic-form');
 
-// Настройка marked
+const container = document.querySelector('.container');
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+const desktopSidebarToggleBtn = document.getElementById('desktop-sidebar-toggle-btn');
+const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+const mobileCurrentTheme = document.getElementById('mobile-current-theme');
+
 marked.setOptions({
     breaks: true,
     gfm: true,
     headerIds: false,
-    highlight: function(code, lang) {
+    highlight: function (code, lang) {
         if (lang && hljs.getLanguage(lang)) {
             return hljs.highlight(code, { language: lang }).value;
         }
@@ -39,14 +50,13 @@ marked.setOptions({
     }
 });
 
-// Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     setupAuth();
     setupEventListeners();
+    setupScrollTracking();
     checkApiHealth();
 });
 
-// Проверка API
 async function checkApiHealth() {
     const isHealthy = await api.healthCheck();
     if (!isHealthy) {
@@ -54,23 +64,21 @@ async function checkApiHealth() {
     }
 }
 
-// Настройка авторизации
 function setupAuth() {
-    // Переключение между вкладками
     document.querySelectorAll('.auth-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
-            
+
             tab.classList.add('active');
             document.getElementById(`${tab.dataset.tab}-form`).classList.add('active');
         });
     });
 
-    // Обработка формы входа
     document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('login-username').value;
+
+        const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value;
 
         try {
@@ -87,21 +95,18 @@ function setupAuth() {
         }
     });
 
-    // Обработка формы регистрации
     document.getElementById('register-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('register-username').value;
+
+        const username = document.getElementById('register-username').value.trim();
         const password = document.getElementById('register-password').value;
 
         try {
             showLoading(true);
             await api.register(username, password);
             showNotification('Регистрация успешна! Теперь войдите в систему.', 'success');
-            
-            // Переключаем на вкладку входа
+
             document.querySelector('[data-tab="login"]').click();
-            
-            // Заполняем поля
             document.getElementById('login-username').value = username;
             document.getElementById('login-password').value = password;
         } catch (error) {
@@ -111,133 +116,155 @@ function setupAuth() {
         }
     });
 
-    // Выход
     document.getElementById('logout-btn').addEventListener('click', () => {
         currentUser = null;
+        currentTopic = null;
+        currentSubtopic = null;
+        conversationContext = '';
         api.setCredentials(null, null);
+
         authPage.style.display = 'flex';
         mainApp.style.display = 'none';
+
+        updateThemeChip();
+        updateMobileThemeTitle();
+        closeSidebar();
+        resetDesktopSidebar();
+
+        messagesContainer.innerHTML = `
+            <div class="empty-chat-message">
+                <i class="fas fa-comment-dots"></i>
+                <p>Выберите тему слева, чтобы начать обучение</p>
+            </div>
+        `;
+
         showNotification('Вы вышли из системы', 'info');
     });
 }
 
-// Загрузка данных пользователя
 async function loadUserData() {
     try {
-        const [userInfo, myTopics, allTopics] = await Promise.all([
+        const [userInfoData, myTopics, allTopics] = await Promise.all([
             api.getCurrentUser(),
             api.getMyTopics(),
             api.getAllTopics()
         ]);
 
-        currentUser = userInfo;
+        currentUser = userInfoData;
         currentTopics = allTopics;
 
-        // Отображаем информацию о пользователе
-        displayUserInfo(userInfo);
-        
-        // Отображаем темы
+        displayUserInfo(userInfoData);
         displayMyTopics(myTopics);
         displayAllTopics(allTopics);
-        
+        updateMobileThemeTitle();
     } catch (error) {
         showNotification('Ошибка загрузки данных', 'error');
     }
 }
 
-// Отображение информации о пользователе
 function displayUserInfo(user) {
     userInfo.innerHTML = `
         <div class="user-avatar">
             <i class="fas fa-user-circle"></i>
         </div>
         <div class="user-details">
-            <span class="username">${user.username}</span>
+            <span class="username">${escapeHtml(user.username)}</span>
             <span class="achievements">Достижений: ${user.achievements_count || 0}</span>
         </div>
     `;
 }
 
-// Отображение моих тем
 function displayMyTopics(topics) {
     myTopicsList.innerHTML = '';
-    
-    if (topics.length === 0) {
-        myTopicsList.innerHTML = '<div class="empty-state">У вас пока нет тем. Создайте первую!</div>';
+
+    if (!topics.length) {
+        myTopicsList.innerHTML = '<div class="empty-state">У вас пока нет тем</div>';
         return;
     }
 
     topics.forEach(topic => {
-        const topicElement = createTopicElement(topic, true);
-        myTopicsList.appendChild(topicElement);
+        myTopicsList.appendChild(createTopicElement(topic, true));
     });
+
+    updateSelectedTopicCard();
 }
 
-// Отображение всех тем
 function displayAllTopics(topics) {
     allTopicsList.innerHTML = '';
-    
-    if (topics.length === 0) {
+
+    if (!topics.length) {
         allTopicsList.innerHTML = '<div class="empty-state">Тем пока нет</div>';
         return;
     }
 
     topics.forEach(topic => {
-        const topicElement = createTopicElement(topic, false);
-        allTopicsList.appendChild(topicElement);
+        allTopicsList.appendChild(createTopicElement(topic, false));
     });
+
+    updateSelectedTopicCard();
 }
 
-// Создание элемента темы
 function createTopicElement(topic, isMyTopic) {
     const div = document.createElement('div');
     div.className = 'topic-card';
     div.dataset.topicId = topic.id;
-    
+
+    if (currentTopic && currentTopic.id === topic.id) {
+        div.classList.add('selected');
+    }
+
+    const createdAt = topic.created_at ? new Date(topic.created_at).toLocaleDateString() : '—';
+
     div.innerHTML = `
         <div class="topic-header">
-            <h4>${topic.title}</h4>
+            <h4>${escapeHtml(topic.title)}</h4>
             ${isMyTopic ? '<i class="fas fa-star my-topic-icon" title="Моя тема"></i>' : ''}
         </div>
-        <p class="topic-description">${topic.description.substring(0, 100)}${topic.description.length > 100 ? '...' : ''}</p>
+
+        <p class="topic-description">${escapeHtml(shortenText(topic.description || '', 100))}</p>
+
         <div class="topic-meta">
-            <span class="topic-creator">
-                <i class="fas fa-user"></i> ${topic.creator_username || 'Пользователь'}
-            </span>
-            <span class="topic-date">
-                <i class="fas fa-calendar"></i> ${new Date(topic.created_at).toLocaleDateString()}
-            </span>
+            <span><i class="fas fa-user"></i> ${escapeHtml(topic.creator_username || 'Пользователь')}</span>
+            <span><i class="fas fa-calendar"></i> ${createdAt}</span>
         </div>
+
         ${isMyTopic ? `
             <div class="topic-actions">
-                <button class="delete-topic" onclick="deleteTopic(${topic.id})">
+                <button class="delete-topic" type="button" title="Удалить тему">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
         ` : ''}
     `;
-    
-    div.addEventListener('click', (e) => {
-        if (!e.target.closest('.delete-topic')) {
-            selectTopic(topic);
-        }
+
+    const deleteButton = div.querySelector('.delete-topic');
+    if (deleteButton) {
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteTopic(topic.id);
+        });
+    }
+
+    div.addEventListener('click', () => {
+        selectTopic(topic);
     });
-    
+
     return div;
 }
 
-// Выбор темы для изучения
 async function selectTopic(topic) {
     currentTopic = topic;
     currentSubtopic = null;
+    conversationContext = '';
+
     currentThemeTitle.textContent = topic.title;
-    currentThemeDescription.textContent = topic.description;
+    currentThemeDescription.textContent = topic.description || '';
+    updateThemeChip();
+    updateSelectedTopicCard();
+    updateMobileThemeTitle();
 
-    // Очищаем чат
     messagesContainer.innerHTML = '';
-
-    // Добавляем приветственное сообщение
-    addAIMessage(`# ${topic.title}\n\n${topic.description}\n\nВыберите подтему для изучения:`);
+    addAIMessage(`# ${topic.title}\n\n${topic.description || 'Описание отсутствует.'}\n\nВыберите подтему ниже или задайте вопрос сразу по всей теме.`);
 
     let programData = topic.data_json;
 
@@ -251,109 +278,127 @@ async function selectTopic(topic) {
 
     displaySubtopics(programData);
 
-    // Активируем ввод
     userInput.disabled = false;
     sendBtn.disabled = false;
+    userInput.placeholder = `Задайте вопрос по теме «${topic.title}»...`;
     userInput.focus();
 
-    // Загружаем программу обучения из data_json если есть
     if (topic.data_json) {
-        // Проверяем, является ли data_json строкой или объектом
-        let programData = topic.data_json;
-        if (typeof programData === 'string') {
-            try {
-                programData = JSON.parse(programData);
-            } catch (e) {
-                console.error('Ошибка парсинга JSON:', e);
-            }
-        }
-
-        // Форматируем программу обучения в красивый Markdown
         const formattedProgram = formatLearningProgram(programData);
         addAIMessage(formattedProgram);
     }
+
+    if (window.innerWidth <= 860) {
+        closeSidebar();
+    }
 }
 
-// функция для отображения подтем
 function displaySubtopics(dataJson) {
-    const container = document.getElementById('subtopics-container');
-    const list = document.getElementById('subtopics-list');
-    const content = document.getElementById('subtopics-content');
-    const toggleBtn = document.getElementById('toggle-subtopics-btn');
-    
-    if (!dataJson || !dataJson.themes || dataJson.themes.length === 0) {
-        container.style.display = 'none';
+    if (!dataJson || !dataJson.themes || !dataJson.themes.length) {
+        subtopicsContainer.style.display = 'none';
         return;
     }
-    
-    list.innerHTML = '';
+
+    subtopicsContainer.style.display = 'block';
+    subtopicsContent.style.display = 'block';
+    toggleSubtopicsBtn.classList.remove('is-collapsed');
+    toggleSubtopicsBtn.setAttribute('aria-expanded', 'true');
+
+    const textNode = toggleSubtopicsBtn.querySelector('.toggle-btn-text');
+    if (textNode) {
+        textNode.textContent = 'Свернуть';
+    }
+
+    subtopicsList.innerHTML = '';
+
     dataJson.themes.forEach((subtopic, index) => {
-        const subtopicElement = document.createElement('div');
-        subtopicElement.className = 'subtopic-item';
-        subtopicElement.innerHTML = `
-            <div class="subtopic-header">
-                <span class="subtopic-name">${subtopic.name}</span>
-                <button class="subtopic-test-btn" data-subtopic-index="${index}">
-                    📝 Пройти тест
+        const card = document.createElement('article');
+        card.className = 'subtopic-item';
+        card.dataset.subtopicName = subtopic.name;
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('role', 'button');
+
+        if (currentSubtopic && currentSubtopic.name === subtopic.name) {
+            card.classList.add('selected');
+        }
+
+        card.innerHTML = `
+            <div class="subtopic-badge">Подтема ${index + 1}</div>
+
+            <div class="subtopic-main">
+                <div class="subtopic-header">
+                    <div class="subtopic-title-wrap">
+                        <div class="subtopic-name">${escapeHtml(subtopic.name)}</div>
+                        <div class="subtopic-select-hint">
+                            <i class="fas fa-sparkles"></i>
+                            <span>Выбрать для изучения</span>
+                        </div>
+                    </div>
+
+                    <div class="subtopic-check">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </div>
+
+                <div class="subtopic-description">${escapeHtml(subtopic.description || 'Описание подтемы отсутствует.')}</div>
+            </div>
+
+            <div class="subtopic-actions">
+                <button class="subtopic-test-btn" type="button">
+                    <i class="fas fa-clipboard-check"></i>
+                    <span>Пройти тест</span>
                 </button>
             </div>
-            <div class="subtopic-description">${subtopic.description}</div>
         `;
-        
-        // Клик на название или описание выбирает подтему
-        subtopicElement.querySelector('.subtopic-name').addEventListener('click', () => {
-            selectSubtopic(subtopic);
+
+        const selectHandler = () => selectSubtopic(subtopic);
+
+        card.addEventListener('click', selectHandler);
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectHandler();
+            }
         });
-        
-        subtopicElement.querySelector('.subtopic-description').addEventListener('click', () => {
-            selectSubtopic(subtopic);
-        });
-        
-        // Клик на кнопку теста
-        subtopicElement.querySelector('.subtopic-test-btn').addEventListener('click', (e) => {
+
+        const testBtn = card.querySelector('.subtopic-test-btn');
+        testBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             takeSubtopicTest(subtopic);
         });
-        
-        list.appendChild(subtopicElement);
+
+        subtopicsList.appendChild(card);
     });
 
-
-    container.style.display = 'block';
-    content.style.display = 'none';
-    toggleBtn.textContent = '📚 Показать подтемы';
+    updateSelectedSubtopicCard();
 }
 
-// Функция выбора подтемы
 function selectSubtopic(subtopic) {
     currentSubtopic = subtopic;
+    updateSelectedSubtopicCard();
+    updateThemeChip();
 
-//    // скрываем список подтем
-//    const container = document.getElementById('subtopics-container');
-//    container.style.display = 'none';
+    userInput.disabled = false;
+    sendBtn.disabled = false;
+    userInput.placeholder = `Задайте вопрос по подтеме «${subtopic.name}»...`;
 
-    // сообщение о выбранной подтеме
-    addAIMessage(`✅ **Выбрана подтема:** ${subtopic.name}\n\n${subtopic.description}\n\nТеперь вы можете задавать вопросы по этой теме.`);
+    addAIMessage(
+        `## Подтема выбрана\n\n**${subtopic.name}**\n\n${subtopic.description || 'Описание отсутствует.'}\n\nТеперь я буду ориентироваться именно на эту подтему.`
+    );
 
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    smartScrollToBottom(true);
 }
 
-// Функция для форматирования программы обучения
 function formatLearningProgram(data) {
     let markdown = '## 📚 Программа обучения\n\n';
 
-    // Если данные пришли в формате { themes: [...] }
-    if (data.themes && Array.isArray(data.themes)) {
+    if (data?.themes && Array.isArray(data.themes)) {
         data.themes.forEach((theme, index) => {
             markdown += `### ${index + 1}. ${theme.name}\n\n`;
-            markdown += `${theme.description}\n\n`;
-
-            // Добавляем иконки для визуального разделения
+            markdown += `${theme.description || ''}\n\n`;
             markdown += `---\n\n`;
         });
-    }
-    // Если данные пришли как массив
-    else if (Array.isArray(data)) {
+    } else if (Array.isArray(data)) {
         data.forEach((item, index) => {
             if (item.name) {
                 markdown += `### ${index + 1}. ${item.name}\n\n`;
@@ -363,34 +408,30 @@ function formatLearningProgram(data) {
                 markdown += `---\n\n`;
             }
         });
-    }
-    // Если данные пришли в другом формате
-    else if (data.topics && Array.isArray(data.topics)) {
+    } else if (data?.topics && Array.isArray(data.topics)) {
         data.topics.forEach((topic, index) => {
             markdown += `### ${index + 1}. ${topic.title || topic.name}\n\n`;
             markdown += `${topic.description || ''}\n\n`;
             markdown += `---\n\n`;
         });
-    }
-    // Если ничего не подошло, показываем как есть, но с форматированием
-    else {
+    } else {
         markdown += '```json\n' + JSON.stringify(data, null, 2) + '\n```';
     }
 
     return markdown;
 }
 
-// Также добавим функцию для форматирования ответов AI с подтемами
 function formatAIResponse(response) {
-    // Проверяем, содержит ли ответ JSON-подобную структуру
-    if (response.includes('"themes":') || response.includes('"name":') || response.includes('"description":')) {
+    if (
+        response.includes('"themes":') ||
+        response.includes('"name":') ||
+        response.includes('"description":')
+    ) {
         try {
-            // Пробуем найти JSON в ответе
             const jsonMatch = response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const jsonData = JSON.parse(jsonMatch[0]);
                 if (jsonData.themes || Array.isArray(jsonData)) {
-                    // Заменяем JSON на отформатированную версию
                     const formatted = formatLearningProgram(jsonData);
                     response = response.replace(jsonMatch[0], formatted);
                 }
@@ -399,76 +440,54 @@ function formatAIResponse(response) {
             console.error('Ошибка форматирования ответа:', e);
         }
     }
+
     return response;
 }
 
-// Обновим функцию addAIMessageWithTyping
-function addAIMessageWithTyping(markdownText) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ai';
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    messageDiv.appendChild(contentDiv);
-
-    messagesContainer.appendChild(messageDiv);
-
-    // Форматируем текст перед отображением
-    const formattedText = formatAIResponse(markdownText);
-    typeWriterEffect(contentDiv, formattedText);
-}
-
-// Обновим функцию addAIMessage
-function addAIMessage(markdownText) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ai';
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-
-    // Форматируем текст перед отображением
-    const formattedText = formatAIResponse(markdownText);
-    contentDiv.innerHTML = marked.parse(formattedText);
-
-    contentDiv.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightElement(block);
-    });
-
-    messageDiv.appendChild(contentDiv);
-    messagesContainer.appendChild(messageDiv);
-    scrollToBottom();
-}
-
-// Удаление темы
 async function deleteTopic(topicId) {
     if (!confirm('Вы уверены, что хотите удалить эту тему?')) {
         return;
     }
-    
+
     try {
         await api.deleteTopic(topicId);
         showNotification('Тема удалена', 'success');
         await loadUserData();
-        
+
         if (currentTopic && currentTopic.id === topicId) {
             currentTopic = null;
+            currentSubtopic = null;
+            conversationContext = '';
+
             currentThemeTitle.textContent = 'Выберите тему для изучения';
             currentThemeDescription.textContent = '';
-            messagesContainer.innerHTML = '';
+            subtopicsContainer.style.display = 'none';
+
+            messagesContainer.innerHTML = `
+                <div class="empty-chat-message">
+                    <i class="fas fa-comment-dots"></i>
+                    <p>Выберите тему слева, чтобы начать обучение</p>
+                </div>
+            `;
+
             userInput.disabled = true;
             sendBtn.disabled = true;
+            userInput.placeholder = 'Сначала выберите тему...';
+
+            updateThemeChip();
+            updateMobileThemeTitle();
         }
     } catch (error) {
         showNotification(error.message, 'error');
     }
 }
 
-// Поиск тем
 let searchTimeout;
 searchInput.addEventListener('input', (e) => {
     clearTimeout(searchTimeout);
+
     searchTimeout = setTimeout(async () => {
-        const search = e.target.value;
+        const search = e.target.value.trim();
         try {
             const topics = await api.getAllTopics(search);
             displayAllTopics(topics);
@@ -478,17 +497,19 @@ searchInput.addEventListener('input', (e) => {
     }, 300);
 });
 
-// Отправка сообщения
 async function sendMessage() {
     const message = userInput.value.trim();
-    if (!message || !currentTopic) return;
-    
+    if (!message || !currentTopic) {
+        return;
+    }
+
     addUserMessage(message);
     userInput.value = '';
     userInput.style.height = 'auto';
-    
+
     typingIndicator.style.display = 'flex';
-    
+    smartScrollToBottom(true);
+
     try {
         if (conversationContext.length > 5000) {
             conversationContext = conversationContext.slice(-5000);
@@ -497,15 +518,9 @@ async function sendMessage() {
                 conversationContext = messages.slice(-10).join('\n\n');
             }
         }
-        // Определяем, по какой теме общаемся (подтема или основная тема)
+
         const themeName = currentSubtopic ? currentSubtopic.name : currentTopic.title;
         const additionalInfo = currentSubtopic ? currentSubtopic.description : currentTopic.description;
-        
-        console.log('Отправка запроса:', {
-            themeName,
-            additionalInfo,
-            message
-        });
 
         const response = await api.learnWithAI(
             themeName,
@@ -514,8 +529,6 @@ async function sendMessage() {
             conversationContext
         );
 
-        console.log('Ответ от API:', response);
-        
         let aiResponse = '';
         if (response.answer) {
             aiResponse = response.answer;
@@ -527,9 +540,7 @@ async function sendMessage() {
             aiResponse = JSON.stringify(response);
         }
 
-        // Сохраняем контекст для продолжения диалога
         conversationContext += `\nUser: ${message}\nAI: ${aiResponse}\n`;
-        
         addAIMessageWithTyping(aiResponse);
     } catch (error) {
         typingIndicator.style.display = 'none';
@@ -538,43 +549,29 @@ async function sendMessage() {
     }
 }
 
-// Новая функция для прохождения теста по подтеме
 async function takeSubtopicTest(subtopic) {
-    if (!currentTopic) return;
-    
+    if (!currentTopic) {
+        return;
+    }
+
     typingIndicator.style.display = 'flex';
-    
+    smartScrollToBottom(true);
+
     try {
-        // Добавляем сообщение о начале теста
         addAIMessage(`📝 **Запрашиваю тест по теме:** ${subtopic.name}...`);
-        
-        // Вызываем эндпоинт для теста
-        const response = await fetch(`${API_BASE_URL}/get_final_theme_test`, {
-            method: 'POST',
-            headers: api.getHeaders(),
-            body: JSON.stringify({
-                username: api.username,
-                password: api.password,
-                title: subtopic.name,
-                description: subtopic.description
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Ошибка получения теста');
-        }
-        
-        const data = await response.json();
-        const questions = data.test;
+
+        const data = await api.getFinalTest(subtopic.name, subtopic.description);
+        const questions = data.test || [];
 
         typingIndicator.style.display = 'none';
 
-        const combined_questions = questions
-          .map(q => `**${q.name}:** ${q.description}`)
-          .join('\n\n');
+        const combinedQuestions = questions
+            .map(q => `**${q.name}:** ${q.description}`)
+            .join('\n\n');
 
-        addAIMessage(`## 📋 Тест по теме: ${data.title}\n## 🗂 Описание: ${data.description}\n\n${combined_questions}`);
-
+        addAIMessage(
+            `## 📋 Тест по теме: ${data.title}\n\n**Описание:** ${data.description}\n\n${combinedQuestions}`
+        );
     } catch (error) {
         typingIndicator.style.display = 'none';
         showNotification('Ошибка при получении теста', 'error');
@@ -582,7 +579,6 @@ async function takeSubtopicTest(subtopic) {
     }
 }
 
-// Добавление сообщения пользователя
 function addUserMessage(text) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message user';
@@ -590,144 +586,166 @@ function addUserMessage(text) {
         <div class="message-content">${escapeHtml(text)}</div>
     `;
     messagesContainer.appendChild(messageDiv);
-    scrollToBottom();
+    smartScrollToBottom(true);
 }
 
-// Добавление сообщения AI с анимацией
 function addAIMessageWithTyping(markdownText) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message ai';
-    
+
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
+
     messageDiv.appendChild(contentDiv);
-    
     messagesContainer.appendChild(messageDiv);
-    
-    typeWriterEffect(contentDiv, markdownText);
+
+    const formattedText = formatAIResponse(markdownText);
+    typeWriterEffect(contentDiv, formattedText);
 }
 
-// Добавление сообщения AI без анимации
 function addAIMessage(markdownText) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message ai';
-    
+
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
-    contentDiv.innerHTML = marked.parse(markdownText);
-    
+
+    const formattedText = formatAIResponse(markdownText);
+    contentDiv.innerHTML = marked.parse(formattedText);
+
     contentDiv.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
     });
-    
+
     messageDiv.appendChild(contentDiv);
     messagesContainer.appendChild(messageDiv);
-    scrollToBottom();
+
+    smartScrollToBottom(true);
 }
 
-// Эффект печатания
-function typeWriterEffect(element, markdownText, speed = 20) {
+function typeWriterEffect(element, markdownText, speed = 14) {
     const htmlContent = marked.parse(markdownText);
-    
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
     const plainText = tempDiv.textContent || tempDiv.innerText || '';
-    
+
     let i = 0;
-    
+
     function type() {
         if (i < plainText.length) {
-            const progress = i / plainText.length;
+            const progress = plainText.length ? i / plainText.length : 1;
             const htmlLength = htmlContent.length;
-            const charsToShow = Math.floor(htmlLength * progress);
-            
+            const charsToShow = Math.max(1, Math.floor(htmlLength * progress));
+
             element.innerHTML = htmlContent.substring(0, charsToShow);
-            
+
             element.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
-            
+
             i++;
+            smartScrollToBottom();
             setTimeout(type, speed);
         } else {
             element.innerHTML = htmlContent;
+
             element.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
+
             typingIndicator.style.display = 'none';
+            smartScrollToBottom();
         }
-        
-        scrollToBottom();
     }
-    
-    setTimeout(type, 300);
+
+    setTimeout(type, 220);
 }
 
-// Показ основного приложения
 function showMainApp() {
     authPage.style.display = 'none';
     mainApp.style.display = 'flex';
 }
 
-// Настройка обработчиков событий
 function setupEventListeners() {
+    if (sidebarToggleBtn) {
+        sidebarToggleBtn.addEventListener('click', () => {
+            if (window.innerWidth <= 860) {
+                openSidebar();
+            } else {
+                toggleDesktopSidebar();
+            }
+        });
+    }
 
-    const toggleBtn = document.getElementById('toggle-subtopics-btn');
-    const subtopicsContent = document.getElementById('subtopics-content');
+    if (desktopSidebarToggleBtn) {
+        desktopSidebarToggleBtn.addEventListener('click', toggleDesktopSidebar);
+    }
 
-    toggleBtn.addEventListener('click', () => {
+    if (sidebarCloseBtn) {
+        sidebarCloseBtn.addEventListener('click', closeSidebar);
+    }
 
-        if (subtopicsContent.style.display === 'none') {
-            subtopicsContent.style.display = 'block';
-            toggleBtn.textContent = '📚 Скрыть подтемы';
-        } else {
-            subtopicsContent.style.display = 'none';
-            toggleBtn.textContent = '📚 Показать подтемы';
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 860) {
+            closeSidebar();
         }
-
     });
 
-    // Отправка сообщения
+    toggleSubtopicsBtn.addEventListener('click', () => {
+        const isHidden = subtopicsContent.style.display === 'none';
+
+        subtopicsContent.style.display = isHidden ? 'block' : 'none';
+        toggleSubtopicsBtn.classList.toggle('is-collapsed', !isHidden);
+        toggleSubtopicsBtn.setAttribute('aria-expanded', String(isHidden));
+
+        const textNode = toggleSubtopicsBtn.querySelector('.toggle-btn-text');
+        if (textNode) {
+            textNode.textContent = isHidden ? 'Свернуть' : 'Показать';
+        }
+    });
+
     sendBtn.addEventListener('click', sendMessage);
-    
+
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
     });
-    
-    userInput.addEventListener('input', function() {
+
+    userInput.addEventListener('input', function () {
         this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
+        this.style.height = `${this.scrollHeight}px`;
     });
-    
-    // Модальное окно
+
     addTopicBtn.addEventListener('click', () => {
         modal.style.display = 'block';
     });
-    
-    closeModal.addEventListener('click', () => {
+
+    closeModalBtn.addEventListener('click', () => {
         modal.style.display = 'none';
     });
-    
+
     cancelBtn.addEventListener('click', () => {
         modal.style.display = 'none';
     });
-    
+
     window.addEventListener('click', (e) => {
         if (e.target === modal) {
             modal.style.display = 'none';
         }
     });
-    
-    // Создание темы
+
     createTopicForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        const title = document.getElementById('topic-title').value;
-        const description = document.getElementById('topic-description').value;
-        
+
+        const title = document.getElementById('topic-title').value.trim();
+        const description = document.getElementById('topic-description').value.trim();
+
         try {
             showLoading(true);
             await api.createTopic(title, description);
@@ -743,32 +761,126 @@ function setupEventListeners() {
     });
 }
 
-// Вспомогательные функции
+function setupScrollTracking() {
+    messagesContainer.addEventListener('scroll', () => {
+        shouldAutoScroll = isNearBottom(messagesContainer, 120);
+    });
+}
+
+function isNearBottom(container, threshold = 80) {
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distanceFromBottom <= threshold;
+}
+
+function smartScrollToBottom(force = false) {
+    if (force || shouldAutoScroll) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+function openSidebar() {
+    if (!sidebar || window.innerWidth > 860) {
+        return;
+    }
+
+    sidebar.classList.add('open');
+    sidebarOverlay.classList.add('active');
+    document.body.classList.add('sidebar-open');
+}
+
+function closeSidebar() {
+    if (!sidebar) {
+        return;
+    }
+
+    sidebar.classList.remove('open');
+    sidebarOverlay.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+}
+
+function toggleDesktopSidebar() {
+    if (window.innerWidth <= 860 || !container) {
+        openSidebar();
+        return;
+    }
+
+    container.classList.toggle('sidebar-collapsed');
+}
+
+function resetDesktopSidebar() {
+    if (!container) {
+        return;
+    }
+    container.classList.remove('sidebar-collapsed');
+}
+
+function updateSelectedTopicCard() {
+    document.querySelectorAll('.topic-card').forEach(card => {
+        const cardId = Number(card.dataset.topicId);
+        card.classList.toggle('selected', !!currentTopic && cardId === currentTopic.id);
+    });
+}
+
+function updateSelectedSubtopicCard() {
+    document.querySelectorAll('.subtopic-item').forEach(card => {
+        const isSelected = !!currentSubtopic && card.dataset.subtopicName === currentSubtopic.name;
+        card.classList.toggle('selected', isSelected);
+    });
+}
+
+function updateThemeChip() {
+    if (!themeChip || !themeChipText) {
+        return;
+    }
+
+    if (!currentTopic) {
+        themeChip.style.display = 'none';
+        return;
+    }
+
+    themeChip.style.display = 'inline-flex';
+    themeChipText.textContent = currentSubtopic
+        ? `${currentTopic.title} → ${currentSubtopic.name}`
+        : currentTopic.title;
+}
+
+function updateMobileThemeTitle() {
+    if (!mobileCurrentTheme) {
+        return;
+    }
+
+    mobileCurrentTheme.textContent = currentTopic ? currentTopic.title : 'AdaptiveLearning';
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = text ?? '';
     return div.innerHTML;
 }
 
-function scrollToBottom() {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+function shortenText(text, maxLength = 100) {
+    if (!text) {
+        return '';
+    }
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 }
 
 function showNotification(message, type = 'info') {
-    // Создаем уведомление
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.innerHTML = `
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
+        <i class="fas ${type === 'success'
+            ? 'fa-check-circle'
+            : type === 'error'
+                ? 'fa-exclamation-circle'
+                : 'fa-info-circle'}"></i>
+        <span>${escapeHtml(message)}</span>
     `;
-    
+
     document.body.appendChild(notification);
-    
-    // Анимация появления
+
     setTimeout(() => notification.classList.add('show'), 10);
-    
-    // Удаляем через 3 секунды
+
     setTimeout(() => {
         notification.classList.remove('show');
         setTimeout(() => notification.remove(), 300);
@@ -776,7 +888,6 @@ function showNotification(message, type = 'info') {
 }
 
 function showLoading(show) {
-    // Можно добавить глобальный индикатор загрузки
     if (show) {
         document.body.classList.add('loading');
     } else {
