@@ -4,6 +4,7 @@ let currentTopic = null;
 let currentTopics = [];
 let conversationContext = '';
 let shouldAutoScroll = true;
+let currentChatMode = 'learning';
 
 const authPage = document.getElementById('auth-page');
 const mainApp = document.getElementById('main-app');
@@ -120,6 +121,7 @@ function setupAuth() {
         currentUser = null;
         currentTopic = null;
         currentSubtopic = null;
+        currentChatMode = 'learning';
         conversationContext = '';
         api.setCredentials(null, null);
 
@@ -255,6 +257,7 @@ function createTopicElement(topic, isMyTopic) {
 async function selectTopic(topic) {
     currentTopic = topic;
     currentSubtopic = null;
+    currentChatMode = 'learning';
     conversationContext = '';
 
     currentThemeTitle.textContent = topic.title;
@@ -404,6 +407,8 @@ function displaySubtopics(dataJson) {
 
 async function selectSubtopic(subtopic) {
     currentSubtopic = subtopic;
+    currentChatMode = 'learning';
+    conversationContext = '';
     updateSelectedSubtopicCard();
     updateThemeChip();
 
@@ -515,6 +520,7 @@ async function deleteTopic(topicId) {
         if (currentTopic && currentTopic.id === topicId) {
             currentTopic = null;
             currentSubtopic = null;
+            currentChatMode = 'learning';
             conversationContext = '';
 
             currentThemeTitle.textContent = 'Выберите тему для изучения';
@@ -580,12 +586,19 @@ async function sendMessage() {
         const themeName = currentSubtopic ? currentSubtopic.name : currentTopic.title;
         const additionalInfo = currentSubtopic ? currentSubtopic.description : currentTopic.description;
 
-        const response = await api.chatWithUser(
-            themeName,
-            message,
-            additionalInfo,
-            conversationContext
-        );
+        const response = currentChatMode === 'test'
+            ? await api.discussTestWithUser(
+                themeName,
+                message,
+                additionalInfo,
+                conversationContext
+            )
+            : await api.chatWithUser(
+                themeName,
+                message,
+                additionalInfo,
+                conversationContext
+            );
 
         let aiResponse = '';
         if (response.answer) {
@@ -624,12 +637,23 @@ async function takeSubtopicTest(subtopic) {
         typingIndicator.style.display = 'none';
 
         const combinedQuestions = questions
-            .map(q => `**${q.name}:** ${q.description}`)
+            .map((q, index) => `${index + 1}. **${q.name}:** ${q.description}`)
             .join('\n\n');
 
         addAIMessage(
             `## 📋 Тест по теме: ${data.title}\n\n**Описание:** ${data.description}\n\n${combinedQuestions}`
         );
+
+        currentSubtopic = subtopic;
+        currentChatMode = 'test';
+        conversationContext = '';
+        updateSelectedSubtopicCard();
+        updateThemeChip();
+
+        userInput.disabled = false;
+        sendBtn.disabled = false;
+        userInput.placeholder = `Введите ответ по тесту «${subtopic.name}»...`;
+
     } catch (error) {
         typingIndicator.style.display = 'none';
         showNotification('Ошибка при получении теста', 'error');

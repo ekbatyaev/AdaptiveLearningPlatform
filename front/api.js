@@ -126,20 +126,42 @@ class ApiClient {
     }
 
   async generateExplanation(themeName, additionalInfo = '') {
-    const response = await fetch(`${API_BASE_URL}/generate_explanation`, {
+        const response = await fetch(`${API_BASE_URL}/generate_explanation`, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify({
+                    username: this.username,
+                    password: this.password,
+                    theme_name: themeName,
+                    additional_info: additionalInfo
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Ошибка при генерации объяснения');
+            }
+
+            return await response.json();
+        }
+
+        async discussTestWithUser(themeName, userRequest, additionalInfo = '', oldContext = '') {
+        const response = await fetch(`${API_BASE_URL}/test_discussing_with_user`, {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
                 username: this.username,
                 password: this.password,
+                user_request: userRequest,
                 theme_name: themeName,
-                additional_info: additionalInfo
+                additional_info: additionalInfo,
+                old_context: oldContext
             })
         });
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Ошибка при генерации объяснения');
+            throw new Error(error.detail || 'Ошибка при проверке теста');
         }
 
         return await response.json();

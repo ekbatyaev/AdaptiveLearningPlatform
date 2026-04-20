@@ -13,6 +13,7 @@ from app.llm.generate_explanation_of_theme import explanation_generation
 from app.llm.conversation_with_user import chatting_with_user
 from app.llm.study_program_generating import generate_learning_program
 from app.llm.final_theme_assesment_generating import final_theme_test
+from app.llm.assesment_discussing_with_user import test_discussing_with_user
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
@@ -70,6 +71,15 @@ class ChattingUserModel(BaseModel):
     theme_name: str
     additional_info: str
     old_context: str
+
+class TestDiscussingUserModel(BaseModel):
+    username: str
+    password: str
+    user_request: str
+    theme_name: str
+    additional_info: str
+    old_context: str
+
 
 class TopicFinalTestModel(BaseModel):
     username: str
@@ -377,6 +387,36 @@ def chatting_user(
     while attempts < 3:
         try:
             model_response = chatting_with_user(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
+                                  additional_info = topic_data.additional_info, old_context = topic_data.old_context)
+            return model_response
+
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
+
+    return {"error": "model failed after 3 attempts"}
+
+@app.post("/test_discussing_with_user", status_code=status.HTTP_201_CREATED)
+def discussing_test_with_user(
+        topic_data: TestDiscussingUserModel,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+
+    current_user.last_used = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+
+
+    print("user_request: ", topic_data.user_request)
+    print("theme_name: ", topic_data.theme_name)
+    print("additional_info: ", topic_data.additional_info)
+    print("old_context: ", topic_data.old_context)
+
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = test_discussing_with_user(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
                                   additional_info = topic_data.additional_info, old_context = topic_data.old_context)
             return model_response
 
