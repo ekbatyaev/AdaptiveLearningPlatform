@@ -109,7 +109,7 @@ def generate_learning_program(title, description) -> Dict:
     )
 
     response = client.responses.create(
-        model=f"gpt://{folder_id}/{model}/rc",
+        model=f"gpt://{folder_id}/{model}",
         instructions=SYSTEM_PROMPT,
         input=[
             {
@@ -136,7 +136,10 @@ def generate_learning_program(title, description) -> Dict:
     )
 
     raw_output = response.output_text or ""
+
     json_text = extract_json_text(raw_output)
+
+    parsed = {}
     try:
         parsed = json.loads(json_text)
         return parsed
@@ -145,7 +148,7 @@ def generate_learning_program(title, description) -> Dict:
         print(
             f"Полученный ответ не соответствует JSON-схеме: {error}\nТекст ответа:\n{json_text}"
         )
-        return {"error": True}
+        return parsed
 
 if __name__ == "__main__":
     print(generate_learning_program(title = "Python", description = "Хочу изучить этот язык программирования для ЕГЭ"))

@@ -9,9 +9,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .table_models import User, Topic
 from .connection_to_database import init_db, get_db
-from llm.theme_learning_requests import learning_with_llm_request
-from llm.study_program_generating import generate_learning_program
-from llm.final_theme_assesment_generating import final_theme_test
+from app.llm.generate_explanation_of_theme import explanation_generation
+from app.llm.conversation_with_user import chatting_with_user
+from app.llm.study_program_generating import generate_learning_program
+from app.llm.final_theme_assesment_generating import final_theme_test
+from app.llm.assesment_discussing_with_user import test_discussing_with_user
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
+from fastapi import Request
+from fastapi.responses import Response
 
 # Создаем приложение
 app = FastAPI(
@@ -19,6 +26,8 @@ app = FastAPI(
     description="API для управления пользователями и темами",
     version="1.0.0"
 )
+
+app.mount("/front", StaticFiles(directory="front"), name="front")
 
 # Настройка CORS
 app.add_middleware(
@@ -32,15 +41,15 @@ app.add_middleware(
 
 # Pydantic модели
 
-class UserCreate(BaseModel):
+class UserCreateModel(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
 
-class UserLogin(BaseModel):
+class UserLoginModel(BaseModel):
     username: str
     password: str
 
-class UserInfoResponse(BaseModel):
+class UserInfoResponseModel(BaseModel):
     id: int
     username: str
     achievements_count: int
@@ -49,7 +58,21 @@ class UserInfoResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class UserThemeLearning(BaseModel):
+class ExplanationGenerationModel(BaseModel):
+    username: str
+    password: str
+    theme_name: str
+    additional_info: str
+
+class ChattingUserModel(BaseModel):
+    username: str
+    password: str
+    user_request: str
+    theme_name: str
+    additional_info: str
+    old_context: str
+
+class TestDiscussingUserModel(BaseModel):
     username: str
     password: str
     user_request: str
@@ -58,26 +81,13 @@ class UserThemeLearning(BaseModel):
     old_context: str
 
 
-class UserThemeLearningResponse(BaseModel):
-    model_response: str
-
-    class Config:
-        from_attributes = True
-
-class TopicFinalTest(BaseModel):
+class TopicFinalTestModel(BaseModel):
     username: str
     password: str
     title: str
     description: str
 
-
-class TopicFinalTestResponse(BaseModel):
-    model_response: str
-
-    class Config:
-        from_attributes = True
-
-class UserResponse(BaseModel):
+class UserResponseModel(BaseModel):
     id: int
     username: str
     achievements_count: int
@@ -141,6 +151,13 @@ def get_current_user(username: str = Header(...), password: str = Header(...), d
     return user
 
 
+# Отключаем кэширование для более удобной и хорошей работы
+@app.middleware("http")
+async def no_cache_middleware(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 # Инициализация базы данных при запуске
 @app.on_event("startup")
 def startup_event():
@@ -148,11 +165,16 @@ def startup_event():
     init_db()
     print("Database initialized")
 
+# Отображение главной старницы информационной системы
+@app.get("/")
+def root():
+    return FileResponse("front/index.html")
+
 
 # Ручки для пользователей
 
-@app.post("/user_register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
+@app.post("/user_register", response_model=UserResponseModel, status_code=status.HTTP_201_CREATED)
+def register_user(user_data: UserCreateModel, db: Session = Depends(get_db)):
     """
     Регистрация нового пользователя
     """
@@ -194,8 +216,8 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 
-@app.post("/user_login", response_model=UserResponse)
-def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
+@app.post("/user_login", response_model=UserResponseModel)
+def login_user(login_data: UserLoginModel, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.username == login_data.username))
     if not user or not bcrypt.checkpw(login_data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
@@ -208,7 +230,7 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     return user
 
 
-@app.get("/users/info", response_model=UserResponse)
+@app.get("/users/info", response_model=UserResponseModel)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Получение информации о текущем пользователе
@@ -216,7 +238,7 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@app.get("/users/{user_id}", response_model=UserInfoResponse)
+@app.get("/users/{user_id}", response_model=UserInfoResponseModel)
 def get_user_by_id(
         user_id: int,
         current_user: User = Depends(get_current_user),
@@ -234,7 +256,7 @@ def get_user_by_id(
             detail="User not found"
         )
 
-    return UserInfoResponse(
+    return UserInfoResponseModel(
         id=user.id,
         username=user.username,
         achievements_count=user.achievements_count,
@@ -243,25 +265,29 @@ def get_user_by_id(
 
 # Ручки для тем
 
-@app.post("/get_final_theme_test", response_model=TopicFinalTestResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/get_final_theme_test",  status_code=status.HTTP_201_CREATED)
 def get_final_test(
-        topic_data: TopicFinalTest,
+        topic_data: TopicFinalTestModel,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
     current_user.last_used = datetime.utcnow()
     db.commit()
     db.refresh(current_user)
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = final_theme_test(
+                title=topic_data.title,
+                description=topic_data.description
+            )
+            return model_response
 
-    try:
-        model_response = final_theme_test(title = topic_data.title,
-                         description = topic_data.description)
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
 
-    except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
-
-    return TopicFinalTestResponse(**model_response)
+    return {"error": "model failed after 3 attempts"}
 
 
 @app.post("/create_topic", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)
@@ -270,11 +296,17 @@ def create_topic(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+
     try:
-        data_json = generate_learning_program(title = topic_data.title, description = topic_data.description)
+        data_json = generate_learning_program(
+            title=topic_data.title,
+            description=topic_data.description
+        )
     except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
+        raise HTTPException(
+            status_code=500,
+            detail=f"Learning program generation failed: {str(e)}"
+        )
     """
     Создание новой темы
     """
@@ -310,9 +342,63 @@ def create_topic(
 
     return TopicResponse(**response_dict)
 
-@app.post("/theme_learning", response_model=UserThemeLearningResponse, status_code=status.HTTP_201_CREATED)
-def get_theme_learning_conversation(
-        topic_data: UserThemeLearning,
+@app.post("/generate_explanation", status_code=status.HTTP_201_CREATED)
+def generate_explanation_message(
+        topic_data: ExplanationGenerationModel,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+
+    current_user.last_used = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+    print("theme_name: ", topic_data.theme_name)
+    print("additional_info: ", topic_data.additional_info)
+
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = explanation_generation(theme_name = topic_data.theme_name,
+                                  additional_info = topic_data.additional_info)
+            return model_response
+
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
+
+    return {"error": "model failed after 3 attempts"}
+
+@app.post("/chatting_with_user", status_code=status.HTTP_201_CREATED)
+def chatting_user(
+        topic_data: ChattingUserModel,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+
+    current_user.last_used = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+    print("user_request: ", topic_data.user_request)
+    print("theme_name: ", topic_data.theme_name)
+    print("additional_info: ", topic_data.additional_info)
+    print("old_context: ", topic_data.old_context)
+
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = chatting_with_user(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
+                                  additional_info = topic_data.additional_info, old_context = topic_data.old_context)
+            return model_response
+
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
+
+    return {"error": "model failed after 3 attempts"}
+
+@app.post("/test_discussing_with_user", status_code=status.HTTP_201_CREATED)
+def discussing_test_with_user(
+        topic_data: TestDiscussingUserModel,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -321,14 +407,24 @@ def get_theme_learning_conversation(
     db.commit()
     db.refresh(current_user)
 
-    try:
-        model_response = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
-                                  additional_info = topic_data.additional_info, old_context = topic_data.old_context)
-    except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
 
-    return UserThemeLearningResponse(**model_response)
+    print("user_request: ", topic_data.user_request)
+    print("theme_name: ", topic_data.theme_name)
+    print("additional_info: ", topic_data.additional_info)
+    print("old_context: ", topic_data.old_context)
+
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = test_discussing_with_user(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
+                                  additional_info = topic_data.additional_info, old_context = topic_data.old_context)
+            return model_response
+
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
+
+    return {"error": "model failed after 3 attempts"}
 
 
 @app.get("/topics", response_model=List[TopicResponse])
