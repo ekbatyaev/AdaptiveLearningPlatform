@@ -264,7 +264,7 @@ async function selectTopic(topic) {
     updateMobileThemeTitle();
 
     messagesContainer.innerHTML = '';
-    addAIMessage(`# ${topic.title}\n\n${topic.description || 'Описание отсутствует.'}\n\nВыберите подтему ниже или задайте вопрос сразу по всей теме.`);
+    addAIMessage(`# ${topic.title}\n\n${topic.description || 'Описание отсутствует.'}`);
 
     let programData = topic.data_json;
 
@@ -286,6 +286,35 @@ async function selectTopic(topic) {
     if (topic.data_json) {
         const formattedProgram = formatLearningProgram(programData);
         addAIMessage(formattedProgram);
+    }
+
+    typingIndicator.style.display = 'flex';
+    smartScrollToBottom(true);
+
+    try {
+        const response = await api.generateExplanation(
+            topic.title,
+            topic.description || ''
+        );
+
+        let aiResponse = '';
+        if (response.answer) {
+            aiResponse = response.answer;
+        } else if (response.model_response) {
+            aiResponse = response.model_response;
+        } else if (typeof response === 'string') {
+            aiResponse = response;
+        } else {
+            aiResponse = JSON.stringify(response);
+        }
+
+        addAIMessageWithTyping(aiResponse);
+
+        conversationContext = `AI: ${aiResponse}\n`;
+    } catch (error) {
+        typingIndicator.style.display = 'none';
+        showNotification('Ошибка при генерации объяснения', 'error');
+        console.error('Generate explanation error:', error);
     }
 
     if (window.innerWidth <= 860) {
@@ -373,7 +402,7 @@ function displaySubtopics(dataJson) {
     updateSelectedSubtopicCard();
 }
 
-function selectSubtopic(subtopic) {
+async function selectSubtopic(subtopic) {
     currentSubtopic = subtopic;
     updateSelectedSubtopicCard();
     updateThemeChip();
@@ -383,8 +412,37 @@ function selectSubtopic(subtopic) {
     userInput.placeholder = `Задайте вопрос по подтеме «${subtopic.name}»...`;
 
     addAIMessage(
-        `## Подтема выбрана\n\n**${subtopic.name}**\n\n${subtopic.description || 'Описание отсутствует.'}\n\nТеперь я буду ориентироваться именно на эту подтему.`
+        `**${subtopic.name}**\n\n${subtopic.description || 'Описание отсутствует.'}\n\nТеперь я буду ориентироваться именно на эту подтему.`
     );
+
+    typingIndicator.style.display = 'flex';
+    smartScrollToBottom(true);
+
+    try {
+        const response = await api.generateExplanation(
+            subtopic.name,
+            subtopic.description || ''
+        );
+
+        let aiResponse = '';
+        if (response.answer) {
+            aiResponse = response.answer;
+        } else if (response.model_response) {
+            aiResponse = response.model_response;
+        } else if (typeof response === 'string') {
+            aiResponse = response;
+        } else {
+            aiResponse = JSON.stringify(response);
+        }
+
+        addAIMessageWithTyping(aiResponse);
+
+        conversationContext = `AI: ${aiResponse}\n`;
+    } catch (error) {
+        typingIndicator.style.display = 'none';
+        showNotification('Ошибка при генерации объяснения', 'error');
+        console.error('Generate explanation error:', error);
+    }
 
     smartScrollToBottom(true);
 }
@@ -522,7 +580,7 @@ async function sendMessage() {
         const themeName = currentSubtopic ? currentSubtopic.name : currentTopic.title;
         const additionalInfo = currentSubtopic ? currentSubtopic.description : currentTopic.description;
 
-        const response = await api.learnWithAI(
+        const response = await api.chatWithUser(
             themeName,
             message,
             additionalInfo,
@@ -680,6 +738,8 @@ function setupEventListeners() {
     if (desktopSidebarToggleBtn) {
         desktopSidebarToggleBtn.addEventListener('click', toggleDesktopSidebar);
     }
+
+
 
     if (sidebarCloseBtn) {
         sidebarCloseBtn.addEventListener('click', closeSidebar);

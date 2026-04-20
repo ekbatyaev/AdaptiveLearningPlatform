@@ -125,8 +125,28 @@ class ApiClient {
         return await response.json();
     }
 
-    async learnWithAI(themeName, userRequest, additionalInfo = '', oldContext = '') {
-        const response = await fetch(`${API_BASE_URL}/theme_learning`, {
+  async generateExplanation(themeName, additionalInfo = '') {
+    const response = await fetch(`${API_BASE_URL}/generate_explanation`, {
+            method: 'POST',
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                username: this.username,
+                password: this.password,
+                theme_name: themeName,
+                additional_info: additionalInfo
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка при генерации объяснения');
+        }
+
+        return await response.json();
+    }
+
+    async chatWithUser(themeName, userRequest, additionalInfo = '', oldContext = '') {
+        const response = await fetch(`${API_BASE_URL}/chatting_with_user`, {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
