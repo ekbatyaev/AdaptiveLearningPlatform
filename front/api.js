@@ -69,6 +69,26 @@ class ApiClient {
         return await response.json();
     }
 
+    async updateAchievement(userId, completedCommonThemeId, completedThemeName, score) {
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/update_achievement`, {
+            method: 'POST',
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                completed_common_theme_id: completedCommonThemeId,
+                completed_theme_name: completedThemeName,
+                score: score
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка обновления достижений');
+        }
+
+        return await response.json();
+    }
+
+
     async getAllTopics(search = '') {
         let url = `${API_BASE_URL}/topics`;
         if (search) {

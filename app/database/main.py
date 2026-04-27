@@ -54,6 +54,7 @@ class UserInfoResponseModel(BaseModel):
     username: str
     achievements_count: int
     last_used: datetime
+    completed_themes: Any
 
     class Config:
         from_attributes = True
@@ -86,6 +87,11 @@ class TopicFinalTestModel(BaseModel):
     password: str
     title: str
     description: str
+
+class UserAchievementSave(BaseModel):
+    score: int
+    completed_common_theme_id: int
+    completed_theme_name: str
 
 class UserResponseModel(BaseModel):
     id: int
@@ -260,8 +266,74 @@ def get_user_by_id(
         id=user.id,
         username=user.username,
         achievements_count=user.achievements_count,
-        last_used=user.last_used
+        last_used=user.last_used,
+        completed_themes = user.completed_themes
     )
+
+@app.post("/users/{user_id}/update_achievement")
+def update_user_achievement(
+    user_id: int,
+    theme_data: UserAchievementSave,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user = db.get(User, user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    completed_themes = user.completed_themes or {}
+
+    common_theme_id = str(theme_data.completed_common_theme_id)
+    theme_name = theme_data.completed_theme_name
+
+    # Если общей темы ещё нет в JSON, создаём её
+    if common_theme_id not in completed_themes:
+        completed_themes[common_theme_id] = {}
+
+    # Проверяем, была ли эта конкретная тема уже пройдена
+    already_completed = completed_themes[common_theme_id].get(theme_name, False)
+
+    if already_completed:
+        return {
+            "success": False,
+            "message": "Эта тема уже была пройдена. Баллы повторно не начислены.",
+            "user": UserInfoResponseModel(
+                id=user.id,
+                username=user.username,
+                achievements_count=user.achievements_count,
+                last_used=user.last_used,
+                completed_themes=user.completed_themes
+            )
+        }
+
+    # Если тема ещё не пройдена — отмечаем как пройденную
+    completed_themes[common_theme_id][theme_name] = True
+
+    # Начисляем баллы
+    user.achievements_count = (user.achievements_count or 0) + theme_data.score
+
+    # Важно: присваиваем обратно, чтобы SQLAlchemy увидел изменение JSON
+    user.completed_themes = completed_themes
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "success": True,
+        "message": "Тема успешно отмечена как пройденная. Баллы начислены.",
+        "user": UserInfoResponseModel(
+            id=user.id,
+            username=user.username,
+            achievements_count=user.achievements_count,
+            last_used=user.last_used,
+            completed_themes=user.completed_themes
+        )
+    }
+
 
 # Ручки для тем
 
