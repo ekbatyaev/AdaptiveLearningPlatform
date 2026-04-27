@@ -15,7 +15,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     achievements_count = Column(Integer, default=0)
     last_used = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    completed_themes = Column(JSON)
     # Связи
     created_topics = relationship("Topic", back_populates="creator")
 

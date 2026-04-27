@@ -30,6 +30,7 @@ const addTopicBtn = document.getElementById('add-topic-btn');
 const closeModalBtn = document.querySelector('.close-modal');
 const cancelBtn = document.querySelector('.cancel-btn');
 const createTopicForm = document.getElementById('create-topic-form');
+const createTopicSubmitBtn = createTopicForm.querySelector('.accept-btn');
 
 const container = document.querySelector('.container');
 const sidebar = document.getElementById('sidebar');
@@ -600,6 +601,46 @@ async function sendMessage() {
                 conversationContext
             );
 
+        if (currentChatMode === 'test' && response.test_passed === true) {
+            const successMessage = 'Спасибо за прохождение теста, вы успешно его прошли и можете переходить дальше! 🏆';
+
+            try {
+                const achievementResponse = await api.updateAchievement(
+                    currentUser.id,
+                    currentTopic.id,
+                    currentSubtopic ? currentSubtopic.name : currentTopic.title,
+                    100
+                );
+
+                if (achievementResponse.user) {
+                    currentUser = achievementResponse.user;
+                    displayUserInfo(currentUser);
+                }
+
+                if (achievementResponse.message) {
+                    showNotification(achievementResponse.message, achievementResponse.success ? 'success' : 'info');
+                }
+            } catch (achievementError) {
+                console.error('Achievement update error:', achievementError);
+                showNotification(
+                    achievementError.message || 'Тест пройден, но не удалось обновить достижения',
+                    'error'
+                );
+            }
+
+            currentChatMode = 'learning';
+            conversationContext += `\nUser: ${message}\nAI: ${successMessage}\n`;
+
+            userInput.placeholder = currentSubtopic
+                ? `Задайте вопрос по подтеме «${currentSubtopic.name}»...`
+                : `Задайте вопрос по теме «${currentTopic.title}»...`;
+
+            updateThemeChip();
+
+            addAIMessageWithTyping(successMessage);
+            return;
+        }
+
         let aiResponse = '';
         if (response.answer) {
             aiResponse = response.answer;
@@ -827,20 +868,40 @@ function setupEventListeners() {
     createTopicForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        if (createTopicSubmitBtn.disabled) {
+            return;
+        }
+
         const title = document.getElementById('topic-title').value.trim();
         const description = document.getElementById('topic-description').value.trim();
 
+        const originalButtonContent = createTopicSubmitBtn.innerHTML;
+
         try {
+            createTopicSubmitBtn.disabled = true;
+            createTopicSubmitBtn.classList.add('is-loading');
+            createTopicSubmitBtn.innerHTML = `
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Создаём...</span>
+            `;
+
             showLoading(true);
+
             await api.createTopic(title, description);
+
             modal.style.display = 'none';
             createTopicForm.reset();
             showNotification('Тема создана!', 'success');
+
             await loadUserData();
         } catch (error) {
             showNotification(error.message, 'error');
         } finally {
             showLoading(false);
+
+            createTopicSubmitBtn.disabled = false;
+            createTopicSubmitBtn.classList.remove('is-loading');
+            createTopicSubmitBtn.innerHTML = originalButtonContent;
         }
     });
 }

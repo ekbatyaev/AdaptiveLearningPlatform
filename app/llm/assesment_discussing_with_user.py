@@ -26,9 +26,15 @@ JSON_SCHEMA = {
                 "type": "string",
                 "title": "Answer",
                 "description": "Ответ нейросети"
+            },
+            "test_passed":{
+                "type": "boolean",
+                "title": "Passing test",
+                "description": "Флаг теста"
+
             }
         },
-        "required": ["answer"],
+        "required": ["answer", "test_passed"],
         "additionalProperties": False
     }
 }
@@ -45,6 +51,10 @@ SYSTEM_PROMPT = \
     — Не пиши «простыню текста»
     — Один абзац = одна мысль
     — Не забывай про отступы
+    — Сначала проверь каждый ответ пользователя по каждому заданию.
+        Посчитай количество правильных заданий.
+        Если правильных заданий >= 6, установи "test_passed": true.
+        Если правильных заданий < 6, установи "test_passed": false.
 
     ────────────────────────────
 
@@ -83,10 +93,15 @@ SYSTEM_PROMPT = \
     — Не бойся использовать эмодзи для выделения
     — Не забывай про отступы
 
-    ФОРМАТ ОТВЕТА — строго одна строка внутри JSON:
+    ФОРМАТ ОТВЕТА:
+    — Верни только валидный JSON.
+    — Не добавляй текст до или после JSON.
+    — Поле "answer" должно быть строкой с Markdown-разметкой.
+    — Поле "test_passed" должно быть boolean: true или false.
+    
 
     ```
-    {"answer": "..."}
+    {"answer":"...","test_passed":false}
     ```
     """
 
@@ -156,7 +171,7 @@ def test_discussing_with_user(user_request, theme_name, additional_info, old_con
         print(
             f"Полученный ответ не соответствует JSON-схеме: {error}\nТекст ответа:\n{json_text}"
         )
-        return {"error": True}
+        return {"error": True, "test_passed": False}
 
 
 if __name__ == "__main__":
