@@ -609,7 +609,7 @@ async function sendMessage() {
                     currentUser.id,
                     currentTopic.id,
                     currentSubtopic ? currentSubtopic.name : currentTopic.title,
-                    100
+                    25
                 );
 
                 if (achievementResponse.user) {

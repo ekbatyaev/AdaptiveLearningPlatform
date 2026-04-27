@@ -88,6 +88,24 @@ class ApiClient {
         return await response.json();
     }
 
+    async checkThemeAvailability(userId, commonThemeId, themeName) {
+        const response = await fetch(`${API_BASE_URL}/users/${userId}/theme_availability`, {
+            method: 'POST',
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                common_theme_id: commonThemeId,
+                theme_name: themeName
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка проверки доступности темы');
+        }
+
+        return await response.json();
+    }
+
 
     async getAllTopics(search = '') {
         let url = `${API_BASE_URL}/topics`;

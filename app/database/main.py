@@ -49,6 +49,18 @@ class UserLoginModel(BaseModel):
     username: str
     password: str
 
+class ThemeAvailabilityCheck(BaseModel):
+    common_theme_id: int
+    theme_name: str
+
+
+class ThemeAvailabilityResponse(BaseModel):
+    success: bool
+    is_available: bool
+    is_completed: bool
+    message: str
+    previous_theme_name: Optional[str] = None
+
 class UserInfoResponseModel(BaseModel):
     id: int
     username: str
@@ -333,6 +345,106 @@ def update_user_achievement(
             completed_themes=user.completed_themes
         )
     }
+
+
+@app.post(
+    "/users/{user_id}/theme_availability",
+    response_model=ThemeAvailabilityResponse
+)
+def check_theme_availability(
+    user_id: int,
+    theme_data: ThemeAvailabilityCheck,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user = db.get(User, user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if current_user.id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can check only your own theme availability"
+        )
+
+    topic = db.get(Topic, theme_data.common_theme_id)
+
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+
+    completed_themes = user.completed_themes or {}
+    common_theme_id = str(theme_data.common_theme_id)
+    theme_name = theme_data.theme_name
+
+    topic_completed_themes = completed_themes.get(common_theme_id, {})
+
+    is_completed = topic_completed_themes.get(theme_name, False)
+
+    data_json = topic.data_json or {}
+    themes = data_json.get("themes", [])
+
+    if not themes:
+        return ThemeAvailabilityResponse(
+            success=False,
+            is_available=False,
+            is_completed=is_completed,
+            message="У этой темы нет списка подтем.",
+            previous_theme_name=None
+        )
+
+    theme_names = [
+        theme.get("name")
+        for theme in themes
+        if isinstance(theme, dict) and theme.get("name")
+    ]
+
+    if theme_name not in theme_names:
+        return ThemeAvailabilityResponse(
+            success=False,
+            is_available=False,
+            is_completed=False,
+            message="Такая подтема не найдена в программе обучения.",
+            previous_theme_name=None
+        )
+
+    current_index = theme_names.index(theme_name)
+
+    if current_index == 0:
+        return ThemeAvailabilityResponse(
+            success=True,
+            is_available=True,
+            is_completed=is_completed,
+            message="Первая подтема доступна для изучения.",
+            previous_theme_name=None
+        )
+
+    previous_theme_name = theme_names[current_index - 1]
+    previous_theme_completed = topic_completed_themes.get(previous_theme_name, False)
+
+    if previous_theme_completed:
+        return ThemeAvailabilityResponse(
+            success=True,
+            is_available=True,
+            is_completed=is_completed,
+            message="Подтема доступна, потому что предыдущая подтема уже пройдена.",
+            previous_theme_name=previous_theme_name
+        )
+
+    return ThemeAvailabilityResponse(
+        success=True,
+        is_available=False,
+        is_completed=is_completed,
+        message=f"Подтема пока недоступна. Сначала нужно пройти предыдущую подтему: «{previous_theme_name}».",
+        previous_theme_name=previous_theme_name
+    )
+
 
 
 # Ручки для тем
