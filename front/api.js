@@ -70,10 +70,11 @@ class ApiClient {
     }
 
     async updateAchievement(userId, completedCommonThemeId, completedThemeName, score) {
-        const response = await fetch(`${API_BASE_URL}/users/${userId}/update_achievement`, {
+        const response = await fetch(`${API_BASE_URL}/users/update_achievement`, {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
+                user_id: userId,
                 completed_common_theme_id: completedCommonThemeId,
                 completed_theme_name: completedThemeName,
                 score: score
@@ -88,11 +89,26 @@ class ApiClient {
         return await response.json();
     }
 
+    async getAllAchievementsUsers() {
+        const response = await fetch(`${API_BASE_URL}/users/all_achievement`, {
+            method: 'GET',
+            headers: this.getHeaders()
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Ошибка получения достижений');
+        }
+
+        return await response.json();
+    }
+
     async checkThemeAvailability(userId, commonThemeId, themeName) {
-        const response = await fetch(`${API_BASE_URL}/users/${userId}/theme_availability`, {
+        const response = await fetch(`${API_BASE_URL}/users/theme_availability`, {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
+                user_id: userId,
                 common_theme_id: commonThemeId,
                 theme_name: themeName
             })
@@ -123,7 +139,7 @@ class ApiClient {
     }
 
     async getMyTopics() {
-        const response = await fetch(`${API_BASE_URL}/users/me/topics`, {
+        const response = await fetch(`${API_BASE_URL}/users/topics`, {
             headers: this.getHeaders()
         });
 
@@ -154,7 +170,12 @@ class ApiClient {
     }
 
     async getTopicById(topicId) {
-        const response = await fetch(`${API_BASE_URL}/topics/get_info_${topicId}`);
+        const response = await fetch(`${API_BASE_URL}/topics/info`, {
+            method: 'GET',
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                topic_id: topicId
+            }));
 
         if (!response.ok) {
             throw new Error('Ошибка получения темы');
@@ -168,8 +189,6 @@ class ApiClient {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body: JSON.stringify({
-                    username: this.username,
-                    password: this.password,
                     theme_name: themeName,
                     additional_info: additionalInfo
                 })
@@ -210,8 +229,6 @@ class ApiClient {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
-                username: this.username,
-                password: this.password,
                 user_request: userRequest,
                 theme_name: themeName,
                 additional_info: additionalInfo,
@@ -232,8 +249,6 @@ class ApiClient {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
-                username: this.username,
-                password: this.password,
                 title,
                 description
             })
@@ -248,9 +263,12 @@ class ApiClient {
     }
 
     async deleteTopic(topicId) {
-        const response = await fetch(`${API_BASE_URL}/topics/delete_${topicId}`, {
+        const response = await fetch(`${API_BASE_URL}/topics/delete`, {
             method: 'DELETE',
-            headers: this.getHeaders()
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                topic_id: topicId
+            })
         });
 
         if (!response.ok) {
@@ -262,10 +280,14 @@ class ApiClient {
     }
 
     async updateTopic(topicId, title, description) {
-        const response = await fetch(`${API_BASE_URL}/topics/update_${topicId}`, {
+        const response = await fetch(`${API_BASE_URL}/topics/update`, {
             method: 'PUT',
             headers: this.getHeaders(),
-            body: JSON.stringify({ title, description })
+            body: JSON.stringify({
+                topic_id: topicId,
+                title: title,
+                description: description
+            })
         });
 
         if (!response.ok) {

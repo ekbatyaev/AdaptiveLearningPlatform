@@ -16,7 +16,6 @@ from app.llm.final_theme_assesment_generating import final_theme_test
 from app.llm.assesment_discussing_with_user import test_discussing_with_user
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pathlib import Path
 from fastapi import Request
 from fastapi.responses import Response
 
@@ -41,6 +40,9 @@ app.add_middleware(
 
 # Pydantic модели
 
+
+# Пользователь
+
 class UserCreateModel(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
@@ -48,18 +50,6 @@ class UserCreateModel(BaseModel):
 class UserLoginModel(BaseModel):
     username: str
     password: str
-
-class ThemeAvailabilityCheck(BaseModel):
-    common_theme_id: int
-    theme_name: str
-
-
-class ThemeAvailabilityResponse(BaseModel):
-    success: bool
-    is_available: bool
-    is_completed: bool
-    message: str
-    previous_theme_name: Optional[str] = None
 
 class UserInfoResponseModel(BaseModel):
     id: int
@@ -70,6 +60,78 @@ class UserInfoResponseModel(BaseModel):
 
     class Config:
         from_attributes = True
+
+class UserInfo(BaseModel):
+    user_id: int
+
+class ThemeAvailabilityCheck(BaseModel):
+    user_id: int
+    common_theme_id: int
+    theme_name: str
+
+class UserAchievementSave(BaseModel):
+    user_id: int
+    score: int
+    completed_common_theme_id: int
+    completed_theme_name: str
+
+# Темы
+
+class TopicFinalTestModel(BaseModel):
+    username: str
+    password: str
+    title: str
+    description: str
+
+class TopicInfo(BaseModel):
+    user_id: int
+
+class TopicCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(..., max_length=1000)
+    data_json: Optional[Dict[str, Any]] = None
+
+    @validator('title')
+    def title_not_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Title cannot be empty')
+        return v.strip()
+
+class TopicUpdate(BaseModel):
+    topic_id: int
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    data_json: Optional[Dict[str, Any]] = None
+
+    @validator('title')
+    def title_not_empty(cls, v):
+        if v is not None and not v.strip():
+            raise ValueError('Title cannot be empty')
+        return v.strip() if v else v
+
+class TopicDelete(BaseModel):
+    topic_id: int
+
+class TopicResponse(BaseModel):
+    id: int
+    title: str
+    description: str
+    data_json: Optional[Dict[str, Any]]
+    created_at: datetime
+    creator_id: Optional[int]
+    creator_username: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class TopicAvailabilityResponse(BaseModel):
+    success: bool
+    is_available: bool
+    is_completed: bool
+    message: str
+    previous_theme_name: Optional[str] = None
+
+# Модели запросов к ИИ
 
 class ExplanationGenerationModel(BaseModel):
     username: str
@@ -93,66 +155,7 @@ class TestDiscussingUserModel(BaseModel):
     additional_info: str
     old_context: str
 
-
-class TopicFinalTestModel(BaseModel):
-    username: str
-    password: str
-    title: str
-    description: str
-
-class UserAchievementSave(BaseModel):
-    score: int
-    completed_common_theme_id: int
-    completed_theme_name: str
-
-class UserResponseModel(BaseModel):
-    id: int
-    username: str
-    achievements_count: int
-    last_used: datetime
-
-    class Config:
-        from_attributes = True
-
-class TopicCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=200)
-    description: str = Field(..., max_length=1000)
-    data_json: Optional[Dict[str, Any]] = None
-
-    @validator('title')
-    def title_not_empty(cls, v):
-        if not v.strip():
-            raise ValueError('Title cannot be empty')
-        return v.strip()
-
-
-class TopicUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=1000)
-    data_json: Optional[Dict[str, Any]] = None
-
-    @validator('title')
-    def title_not_empty(cls, v):
-        if v is not None and not v.strip():
-            raise ValueError('Title cannot be empty')
-        return v.strip() if v else v
-
-
-class TopicResponse(BaseModel):
-    id: int
-    title: str
-    description: str
-    data_json: Optional[Dict[str, Any]]
-    created_at: datetime
-    creator_id: Optional[int]
-    creator_username: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
 # Зависимости
-
 
 def get_current_user(username: str = Header(...), password: str = Header(...), db: Session = Depends(get_db)) -> User:
     """
@@ -191,7 +194,7 @@ def root():
 
 # Ручки для пользователей
 
-@app.post("/user_register", response_model=UserResponseModel, status_code=status.HTTP_201_CREATED)
+@app.post("/user_register", response_model=UserInfoResponseModel, status_code=status.HTTP_201_CREATED)
 def register_user(user_data: UserCreateModel, db: Session = Depends(get_db)):
     """
     Регистрация нового пользователя
@@ -233,8 +236,7 @@ def register_user(user_data: UserCreateModel, db: Session = Depends(get_db)):
 
     return new_user
 
-
-@app.post("/user_login", response_model=UserResponseModel)
+@app.post("/user_login", response_model=UserInfoResponseModel)
 def login_user(login_data: UserLoginModel, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.username == login_data.username))
     if not user or not bcrypt.checkpw(login_data.password.encode('utf-8'), user.password_hash.encode('utf-8')):
@@ -247,18 +249,16 @@ def login_user(login_data: UserLoginModel, db: Session = Depends(get_db)):
 
     return user
 
-
-@app.get("/users/info", response_model=UserResponseModel)
+@app.get("/users/info", response_model=UserInfoResponseModel)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Получение информации о текущем пользователе
     """
     return current_user
 
-
-@app.get("/users/{user_id}", response_model=UserInfoResponseModel)
+@app.get("/users/stats", response_model=UserInfoResponseModel)
 def get_user_by_id(
-        user_id: int,
+        user_data: UserInfo,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -266,7 +266,10 @@ def get_user_by_id(
     Получение информации о пользователе по ID
     Только для аутентифицированных пользователей
     """
-    user = db.get(User, user_id)
+    user = db.get(User, user_data.user_id)
+
+    if current_user.id != user_data.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     if not user:
         raise HTTPException(
@@ -282,14 +285,16 @@ def get_user_by_id(
         completed_themes = user.completed_themes
     )
 
-@app.post("/users/{user_id}/update_achievement")
+@app.post("/users/update_achievement")
 def update_user_achievement(
-    user_id: int,
     theme_data: UserAchievementSave,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    user = db.get(User, user_id)
+    user = db.get(User, theme_data.user_id)
+
+    if current_user.id != theme_data.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     if not user:
         raise HTTPException(
@@ -346,18 +351,13 @@ def update_user_achievement(
         )
     }
 
-
-@app.post(
-    "/users/{user_id}/theme_availability",
-    response_model=ThemeAvailabilityResponse
-)
+@app.post("/users/theme_availability",response_model=TopicAvailabilityResponse)
 def check_theme_availability(
-    user_id: int,
     theme_data: ThemeAvailabilityCheck,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    user = db.get(User, user_id)
+    user = db.get(User, theme_data.user_id)
 
     if not user:
         raise HTTPException(
@@ -391,7 +391,7 @@ def check_theme_availability(
     themes = data_json.get("themes", [])
 
     if not themes:
-        return ThemeAvailabilityResponse(
+        return TopicAvailabilityResponse(
             success=False,
             is_available=False,
             is_completed=is_completed,
@@ -406,7 +406,7 @@ def check_theme_availability(
     ]
 
     if theme_name not in theme_names:
-        return ThemeAvailabilityResponse(
+        return TopicAvailabilityResponse(
             success=False,
             is_available=False,
             is_completed=False,
@@ -417,7 +417,7 @@ def check_theme_availability(
     current_index = theme_names.index(theme_name)
 
     if current_index == 0:
-        return ThemeAvailabilityResponse(
+        return TopicAvailabilityResponse(
             success=True,
             is_available=True,
             is_completed=is_completed,
@@ -429,7 +429,7 @@ def check_theme_availability(
     previous_theme_completed = topic_completed_themes.get(previous_theme_name, False)
 
     if previous_theme_completed:
-        return ThemeAvailabilityResponse(
+        return TopicAvailabilityResponse(
             success=True,
             is_available=True,
             is_completed=is_completed,
@@ -437,7 +437,7 @@ def check_theme_availability(
             previous_theme_name=previous_theme_name
         )
 
-    return ThemeAvailabilityResponse(
+    return TopicAvailabilityResponse(
         success=True,
         is_available=False,
         is_completed=is_completed,
@@ -445,34 +445,61 @@ def check_theme_availability(
         previous_theme_name=previous_theme_name
     )
 
-
-
-# Ручки для тем
-
-@app.post("/get_final_theme_test",  status_code=status.HTTP_201_CREATED)
-def get_final_test(
-        topic_data: TopicFinalTestModel,
+@app.get("/users/topics", response_model=List[TopicResponse])
+def get_my_topics(
         current_user: User = Depends(get_current_user),
+        skip: int = 0,
+        limit: int = 100,
         db: Session = Depends(get_db)
 ):
-    current_user.last_used = datetime.utcnow()
-    db.commit()
-    db.refresh(current_user)
-    attempts = 0
-    while attempts < 3:
-        try:
-            model_response = final_theme_test(
-                title=topic_data.title,
-                description=topic_data.description
-            )
-            return model_response
+    """
+    Получение списка тем, созданных текущим пользователем
+    """
+    topics = db.scalars(
+        select(Topic)
+        .where(Topic.creator_id == current_user.id)
+        .order_by(Topic.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    ).all()
 
-        except Exception as e:
-            attempts += 1
-            print(f"Ошибка: {e}, attempts: {attempts}")
+    result = []
+    for topic in topics:
+        topic_dict = {
+            "id": topic.id,
+            "title": topic.title,
+            "description": topic.description,
+            "data_json": topic.data_json,
+            "created_at": topic.created_at,
+            "creator_id": topic.creator_id,
+            "creator_username": current_user.username
+        }
+        result.append(topic_dict)
 
-    return {"error": "model failed after 3 attempts"}
+    return result
 
+
+@app.get("/users/all_achievement", response_model=List[UserInfoResponseModel])
+def get_all_user_achievement(
+        db: Session = Depends(get_db)
+):
+    """
+    Получение информации о достижениях всех пользователей.
+    """
+    users = db.scalars(select(User)).all()
+
+    return [
+        UserInfoResponseModel(
+            id=user.id,
+            username=user.username,
+            achievements_count=user.achievements_count,
+            last_used=user.last_used,
+            completed_themes=user.completed_themes
+        )
+        for user in users
+    ]
+
+# Ручки для тем
 
 @app.post("/create_topic", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)
 def create_topic(
@@ -525,6 +552,187 @@ def create_topic(
     }
 
     return TopicResponse(**response_dict)
+
+@app.get("/topics", response_model=List[TopicResponse])
+def get_all_topics(
+        skip: int = 0,
+        limit: int = 100,
+        search: Optional[str] = None,
+        db: Session = Depends(get_db)
+):
+    """
+    Получение списка всех тем с пагинацией и поиском
+    """
+
+    query = select(Topic)
+
+    # Добавляем поиск по названию или описанию
+    if search:
+        query = query.where(
+            or_(
+                Topic.title.ilike(f"%{search}%"),
+                Topic.description.ilike(f"%{search}%")
+            )
+        )
+
+    # Сортировка по дате создания
+    query = query.order_by(Topic.created_at.desc())
+
+    # Применяем пагинацию
+    query = query.offset(skip).limit(limit)
+
+    topics = db.scalars(query).all()
+
+    # Формируем ответ с информацией о создателях
+    result = []
+    for topic in topics:
+        topic_dict = {
+            "id": topic.id,
+            "title": topic.title,
+            "description": topic.description,
+            "data_json": topic.data_json,
+            "created_at": topic.created_at,
+            "creator_id": topic.creator_id,
+            "creator_username": None
+        }
+
+        if topic.creator:
+            topic_dict["creator_username"] = topic.creator.username
+
+        result.append(topic_dict)
+
+    return result
+
+
+@app.post("/topics/info", response_model=TopicResponse)
+def get_topic_by_id(topics_info: TopicInfo, db: Session = Depends(get_db)):
+    """
+    Получение информации о конкретной теме по ID
+    """
+    topic = db.get(Topic, topics_info.topic_id)
+
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+
+    topic_dict = {
+        "id": topic.id,
+        "title": topic.title,
+        "description": topic.description,
+        "data_json": topic.data_json,
+        "created_at": topic.created_at,
+        "creator_id": topic.creator_id,
+        "creator_username": None
+    }
+
+    if topic.creator:
+        topic_dict["creator_username"] = topic.creator.username
+
+    return topic_dict
+
+
+@app.put("/topics/update", response_model=TopicResponse)
+def update_topic(
+        topic_data: TopicUpdate,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Обновление темы (только создатель может обновлять)
+    """
+    topic = db.get(Topic, topic_data.topic_id)
+
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+
+    # Проверяем права доступа
+    if topic.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own topics"
+        )
+
+    # Обновляем только переданные поля
+    update_data = topic_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(topic, field, value)
+
+    db.commit()
+    db.refresh(topic)
+
+    # Обновляем словарь для ответа
+    topic_dict = {
+        "id": topic.id,
+        "title": topic.title,
+        "description": topic.description,
+        "data_json": topic.data_json,
+        "created_at": topic.created_at,
+        "creator_id": topic.creator_id,
+        "creator_username": current_user.username
+    }
+
+    return topic_dict
+
+
+@app.delete("/topics/delete")
+def delete_topic(
+        topic_data: TopicDelete,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Удаление темы (только создатель может удалять)
+    """
+    topic = db.get(Topic, topic_data.topic_id)
+
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+
+    # Проверяем права доступа
+    if topic.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own topics"
+        )
+
+    db.delete(topic)
+    db.commit()
+
+    return {"message": "Topic deleted successfully"}
+
+# Запрос к ИИ
+
+@app.post("/get_final_theme_test",  status_code=status.HTTP_201_CREATED)
+def get_final_test(
+        topic_data: TopicFinalTestModel,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    current_user.last_used = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+    attempts = 0
+    while attempts < 3:
+        try:
+            model_response = final_theme_test(
+                title=topic_data.title,
+                description=topic_data.description
+            )
+            return model_response
+
+        except Exception as e:
+            attempts += 1
+            print(f"Ошибка: {e}, attempts: {attempts}")
+
+    return {"error": "model failed after 3 attempts"}
 
 @app.post("/generate_explanation", status_code=status.HTTP_201_CREATED)
 def generate_explanation_message(
@@ -610,198 +818,6 @@ def discussing_test_with_user(
 
     return {"error": "model failed after 3 attempts"}
 
-
-@app.get("/topics", response_model=List[TopicResponse])
-def get_all_topics(
-        skip: int = 0,
-        limit: int = 100,
-        search: Optional[str] = None,
-        db: Session = Depends(get_db)
-):
-    """
-    Получение списка всех тем с пагинацией и поиском
-    """
-
-    query = select(Topic)
-
-    # Добавляем поиск по названию или описанию
-    if search:
-        query = query.where(
-            or_(
-                Topic.title.ilike(f"%{search}%"),
-                Topic.description.ilike(f"%{search}%")
-            )
-        )
-
-    # Сортировка по дате создания
-    query = query.order_by(Topic.created_at.desc())
-
-    # Применяем пагинацию
-    query = query.offset(skip).limit(limit)
-
-    topics = db.scalars(query).all()
-
-    # Формируем ответ с информацией о создателях
-    result = []
-    for topic in topics:
-        topic_dict = {
-            "id": topic.id,
-            "title": topic.title,
-            "description": topic.description,
-            "data_json": topic.data_json,
-            "created_at": topic.created_at,
-            "creator_id": topic.creator_id,
-            "creator_username": None
-        }
-
-        if topic.creator:
-            topic_dict["creator_username"] = topic.creator.username
-
-        result.append(topic_dict)
-
-    return result
-
-
-@app.get("/topics/get_info_{topic_id}", response_model=TopicResponse)
-def get_topic_by_id(topic_id: int, db: Session = Depends(get_db)):
-    """
-    Получение информации о конкретной теме по ID
-    """
-    topic = db.get(Topic, topic_id)
-
-    if not topic:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Topic not found"
-        )
-
-    topic_dict = {
-        "id": topic.id,
-        "title": topic.title,
-        "description": topic.description,
-        "data_json": topic.data_json,
-        "created_at": topic.created_at,
-        "creator_id": topic.creator_id,
-        "creator_username": None
-    }
-
-    if topic.creator:
-        topic_dict["creator_username"] = topic.creator.username
-
-    return topic_dict
-
-
-@app.put("/topics/update_{topic_id}", response_model=TopicResponse)
-def update_topic(
-        topic_id: int,
-        topic_data: TopicUpdate,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-    """
-    Обновление темы (только создатель может обновлять)
-    """
-    topic = db.get(Topic, topic_id)
-
-    if not topic:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Topic not found"
-        )
-
-    # Проверяем права доступа
-    if topic.creator_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update your own topics"
-        )
-
-    # Обновляем только переданные поля
-    update_data = topic_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(topic, field, value)
-
-    db.commit()
-    db.refresh(topic)
-
-    # Обновляем словарь для ответа
-    topic_dict = {
-        "id": topic.id,
-        "title": topic.title,
-        "description": topic.description,
-        "data_json": topic.data_json,
-        "created_at": topic.created_at,
-        "creator_id": topic.creator_id,
-        "creator_username": current_user.username
-    }
-
-    return topic_dict
-
-
-@app.delete("/topics/delete_{topic_id}")
-def delete_topic(
-        topic_id: int,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-    """
-    Удаление темы (только создатель может удалять)
-    """
-    topic = db.get(Topic, topic_id)
-
-    if not topic:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Topic not found"
-        )
-
-    # Проверяем права доступа
-    if topic.creator_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only delete your own topics"
-        )
-
-    db.delete(topic)
-    db.commit()
-
-    return {"message": "Topic deleted successfully"}
-
-
-@app.get("/users/me/topics", response_model=List[TopicResponse])
-def get_my_topics(
-        current_user: User = Depends(get_current_user),
-        skip: int = 0,
-        limit: int = 100,
-        db: Session = Depends(get_db)
-):
-    """
-    Получение списка тем, созданных текущим пользователем
-    """
-    topics = db.scalars(
-        select(Topic)
-        .where(Topic.creator_id == current_user.id)
-        .order_by(Topic.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-    result = []
-    for topic in topics:
-        topic_dict = {
-            "id": topic.id,
-            "title": topic.title,
-            "description": topic.description,
-            "data_json": topic.data_json,
-            "created_at": topic.created_at,
-            "creator_id": topic.creator_id,
-            "creator_username": current_user.username
-        }
-        result.append(topic_dict)
-
-    return result
-
-
 # Статистика
 
 @app.get("/stats")
@@ -824,7 +840,7 @@ def get_statistics(db: Session = Depends(get_db)):
     }
 
 
-# Эндпоинт для проверки здоровья
+# Эндпоинт для проверки состояние сервиса
 
 @app.get("/health")
 def health_check(db: Session = Depends(get_db)):
