@@ -38,6 +38,12 @@ const desktopSidebarToggleBtn = document.getElementById('desktop-sidebar-toggle-
 const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
 const mobileCurrentTheme = document.getElementById('mobile-current-theme');
 
+// ===== СИСТЕМА БАЛЛОВ =====
+let userPoints = 100;
+let subtopicPrice = 100;    // Цена открытия следующей темы
+let topicsProgress = {};
+let unlockedTopics = [];
+
 marked.setOptions({
     breaks: true,
     gfm: true,
@@ -149,10 +155,23 @@ async function loadUserData() {
             api.getMyTopics(),
             api.getAllTopics()
         ]);
-
+        
         currentUser = userInfoData;
         currentTopics = allTopics;
-
+        
+        // Инициализация системы баллов
+        loadPoints();
+        
+        // Сортируем темы по ID и открываем первую бесплатно
+        const sortedTopics = [...allTopics].sort((a, b) => a.id - b.id);
+        if (sortedTopics.length > 0 && unlockedTopics.length === 0) {
+            // Первая тема открыта бесплатно
+            unlockedTopics.push(sortedTopics[0].id);
+        }
+        
+        // Проверяем, какие ещё темы можно открыть
+        checkAndUnlockTopics();
+        
         displayUserInfo(userInfoData);
         displayMyTopics(myTopics);
         displayAllTopics(allTopics);
@@ -208,15 +227,16 @@ function createTopicElement(topic, isMyTopic) {
     const div = document.createElement('div');
     div.className = 'topic-card';
     div.dataset.topicId = topic.id;
-
+    
+    // УБИРАЕМ проверку на unlocked — темы всегда открыты
     if (currentTopic && currentTopic.id === topic.id) {
         div.classList.add('selected');
     }
-
+    
     const createdAt = topic.created_at ? new Date(topic.created_at).toLocaleDateString() : '—';
-
+    
     div.innerHTML = `
-        <div class="topic-header">
+        <div class="topic-meta">
             <h4>${escapeHtml(topic.title)}</h4>
             ${isMyTopic ? '<i class="fas fa-star my-topic-icon" title="Моя тема"></i>' : ''}
         </div>
@@ -227,7 +247,7 @@ function createTopicElement(topic, isMyTopic) {
             <span><i class="fas fa-user"></i> ${escapeHtml(topic.creator_username || 'Пользователь')}</span>
             <span><i class="fas fa-calendar"></i> ${createdAt}</span>
         </div>
-
+        
         ${isMyTopic ? `
             <div class="topic-actions">
                 <button class="delete-topic" type="button" title="Удалить тему">
@@ -236,7 +256,11 @@ function createTopicElement(topic, isMyTopic) {
             </div>
         ` : ''}
     `;
-
+    
+    div.addEventListener('click', () => {
+        selectTopic(topic);
+    });
+    
     const deleteButton = div.querySelector('.delete-topic');
     if (deleteButton) {
         deleteButton.addEventListener('click', (e) => {
@@ -244,11 +268,7 @@ function createTopicElement(topic, isMyTopic) {
             deleteTopic(topic.id);
         });
     }
-
-    div.addEventListener('click', () => {
-        selectTopic(topic);
-    });
-
+    
     return div;
 }
 
@@ -312,61 +332,7 @@ function displaySubtopics(dataJson) {
     subtopicsList.innerHTML = '';
 
     dataJson.themes.forEach((subtopic, index) => {
-        const card = document.createElement('article');
-        card.className = 'subtopic-item';
-        card.dataset.subtopicName = subtopic.name;
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('role', 'button');
-
-        if (currentSubtopic && currentSubtopic.name === subtopic.name) {
-            card.classList.add('selected');
-        }
-
-        card.innerHTML = `
-            <div class="subtopic-badge">Подтема ${index + 1}</div>
-
-            <div class="subtopic-main">
-                <div class="subtopic-header">
-                    <div class="subtopic-title-wrap">
-                        <div class="subtopic-name">${escapeHtml(subtopic.name)}</div>
-                        <div class="subtopic-select-hint">
-                            <i class="fas fa-sparkles"></i>
-                            <span>Выбрать для изучения</span>
-                        </div>
-                    </div>
-
-                    <div class="subtopic-check">
-                        <i class="fas fa-check"></i>
-                    </div>
-                </div>
-
-                <div class="subtopic-description">${escapeHtml(subtopic.description || 'Описание подтемы отсутствует.')}</div>
-            </div>
-
-            <div class="subtopic-actions">
-                <button class="subtopic-test-btn" type="button">
-                    <i class="fas fa-clipboard-check"></i>
-                    <span>Пройти тест</span>
-                </button>
-            </div>
-        `;
-
-        const selectHandler = () => selectSubtopic(subtopic);
-
-        card.addEventListener('click', selectHandler);
-        card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                selectHandler();
-            }
-        });
-
-        const testBtn = card.querySelector('.subtopic-test-btn');
-        testBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            takeSubtopicTest(subtopic);
-        });
-
+        const card = createSubtopicElement(subtopic, index, currentTopic.id);
         subtopicsList.appendChild(card);
     });
 
@@ -549,29 +515,47 @@ async function sendMessage() {
     }
 }
 
-async function takeSubtopicTest(subtopic) {
+async function takeSubtopicTest(subtopic, subtopicIndex) {
     if (!currentTopic) {
         return;
     }
-
+    
     typingIndicator.style.display = 'flex';
     smartScrollToBottom(true);
-
+    
     try {
         addAIMessage(`📝 **Запрашиваю тест по теме:** ${subtopic.name}...`);
-
+        
         const data = await api.getFinalTest(subtopic.name, subtopic.description);
         const questions = data.test || [];
-
+        
         typingIndicator.style.display = 'none';
-
+        
         const combinedQuestions = questions
             .map(q => `**${q.name}:** ${q.description}`)
             .join('\n\n');
-
+        
         addAIMessage(
             `## 📋 Тест по теме: ${data.title}\n\n**Описание:** ${data.description}\n\n${combinedQuestions}`
         );
+        
+        // Начисление баллов
+        const fakeEvent = { clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 };
+        addPointsForTest(currentTopic.id, subtopicIndex, fakeEvent);
+        
+        addAIMessage(`\n\n✨ **Поздравляю!** Вы получили **+50 🧠 Очков Понимания** за прохождение теста! ✨`);
+        
+        // Обновляем отображение подтем
+        if (currentTopic && currentTopic.data_json) {
+            let programData = currentTopic.data_json;
+            if (typeof programData === 'string') {
+                try {
+                    programData = JSON.parse(programData);
+                } catch (e) {}
+            }
+            displaySubtopics(programData);
+        }
+        
     } catch (error) {
         typingIndicator.style.display = 'none';
         showNotification('Ошибка при получении теста', 'error');
@@ -893,4 +877,262 @@ function showLoading(show) {
     } else {
         document.body.classList.remove('loading');
     }
+}
+
+// Загрузка баллов из localStorage
+function loadPoints() {
+    const saved = localStorage.getItem(`user_points_${currentUser?.username}`);
+    if (saved !== null) {
+        userPoints = parseInt(saved);
+    } else {
+        userPoints = 0;
+    }
+    updatePointsDisplay();
+}
+
+// Сохранение баллов
+function savePoints() {
+    if (currentUser?.username) {
+        localStorage.setItem(`user_points_${currentUser.username}`, userPoints);
+    }
+}
+
+// Обновление отображения баллов
+function updatePointsDisplay() {
+    const pointsElement = document.getElementById('points-value');
+    const pointsContainer = document.getElementById('user-points');
+    if (pointsElement && pointsContainer) {
+        pointsElement.textContent = userPoints;
+        pointsContainer.style.display = 'flex';
+    }
+}
+
+// Анимация начисления баллов
+function animatePoints(amount, startX, startY) {
+    const animationDiv = document.createElement('div');
+    animationDiv.className = 'points-animation';
+    animationDiv.innerHTML = `+${amount} 🧠`;
+    animationDiv.style.left = `${startX}px`;
+    animationDiv.style.top = `${startY}px`;
+    document.body.appendChild(animationDiv);
+    
+    setTimeout(() => animationDiv.remove(), 1000);
+}
+
+// Начисление баллов
+function addPoints(amount, event) {
+    userPoints += amount;
+    savePoints();
+    updatePointsDisplay();
+    
+    // Анимация в месте клика
+    let x = event.clientX;
+    let y = event.clientY;
+    animatePoints(amount, x, y);
+    
+    showNotification(`+${amount} 🧠 Очков Понимания!`, 'success');
+}
+
+// Проверка, можно ли открыть новую тему
+function checkAndUnlockTopics() {
+    // Находим все темы, отсортированные по ID (от меньшего к большему)
+    const allTopicsSorted = [...currentTopics].sort((a, b) => a.id - b.id);
+    
+    let firstLockedIndex = -1;
+    
+    for (let i = 0; i < allTopicsSorted.length; i++) {
+        const topic = allTopicsSorted[i];
+        const requiredPoints = i * subtopicPrice; // Первая тема бесплатно
+        
+        if (userPoints >= requiredPoints && !unlockedTopics.includes(topic.id)) {
+            unlockedTopics.push(topic.id);
+        }
+        
+        if (!unlockedTopics.includes(topic.id) && firstLockedIndex === -1) {
+            firstLockedIndex = i;
+        }
+    }
+    
+    // Обновляем отображение всех тем
+    refreshTopicsDisplay();
+}
+
+// Проверка, открыта ли тема
+function isTopicUnlocked(topicId) {
+    return unlockedTopics.includes(topicId);
+}
+
+// Получить цену открытия темы (по индексу)
+function getTopicPrice(topicId) {
+    const allTopicsSorted = [...currentTopics].sort((a, b) => a.id - b.id);
+    const index = allTopicsSorted.findIndex(t => t.id === topicId);
+    return index * subtopicPrice;
+}
+
+// Обновление отображения всех тем
+function refreshTopicsDisplay() {
+    // Перезагружаем отображение всех тем
+    if (currentTopics.length > 0) {
+        // Получаем свежие данные (мои темы и все темы)
+        Promise.all([
+            api.getMyTopics(),
+            api.getAllTopics()
+        ]).then(([myTopics, allTopics]) => {
+            displayMyTopics(myTopics);
+            displayAllTopics(allTopics);
+        }).catch(error => {
+            console.error("Ошибка обновления тем:", error);
+        });
+    }
+}
+
+// Загрузка прогресса из localStorage
+function loadProgress() {
+    const saved = localStorage.getItem(`topics_progress_${currentUser?.username}`);
+    if (saved !== null) {
+        topicsProgress = JSON.parse(saved);
+    }
+}
+
+// Сохранение прогресса
+function saveProgress() {
+    if (currentUser?.username) {
+        localStorage.setItem(`topics_progress_${currentUser.username}`, JSON.stringify(topicsProgress));
+    }
+}
+
+// Получить индекс последней открытой подтемы для темы
+function getUnlockedSubtopicIndex(topicId) {
+    if (!topicsProgress[topicId]) {
+        topicsProgress[topicId] = { unlockedIndex: 0, points: 0 };
+        saveProgress();
+    }
+    return topicsProgress[topicId].unlockedIndex;
+}
+
+// Открыть следующую подтему (после прохождения теста)
+function unlockNextSubtopic(topicId) {
+    if (!topicsProgress[topicId]) {
+        topicsProgress[topicId] = { unlockedIndex: 0, points: 0 };
+    }
+    topicsProgress[topicId].unlockedIndex++;
+    saveProgress();
+}
+
+// Проверка, открыта ли подтема
+function isSubtopicUnlocked(topicId, subtopicIndex) {
+    const unlockedIndex = getUnlockedSubtopicIndex(topicId);
+    return subtopicIndex <= unlockedIndex;
+}
+
+// Получить цену открытия подтемы
+function getSubtopicPrice(subtopicIndex) {
+    return subtopicIndex * subtopicPrice;
+}
+
+// Начисление баллов за тест
+function addPointsForTest(topicId, currentSubtopicIndex, event) {
+    const pointsEarned = 50;
+    userPoints += pointsEarned;
+    
+    // Сохраняем баллы в прогресс темы
+    if (!topicsProgress[topicId]) {
+        topicsProgress[topicId] = { unlockedIndex: 0, points: 0 };
+    }
+    topicsProgress[topicId].points += pointsEarned;
+    
+    savePoints();
+    saveProgress();
+    updatePointsDisplay();
+    
+    // Анимация
+    animatePoints(pointsEarned, event.clientX, event.clientY);
+    
+    // Проверяем, можно ли открыть следующую подтему
+    const requiredPoints = getSubtopicPrice(currentSubtopicIndex + 1);
+    if (topicsProgress[topicId].points >= requiredPoints) {
+        unlockNextSubtopic(topicId);
+        showNotification(`🎉 Новая подтема открыта!`, 'success');
+    }
+    
+    showNotification(`+${pointsEarned} 🧠 Очков Понимания!`, 'success');
+}
+
+function createSubtopicElement(subtopic, index, topicId) {
+    const isUnlocked = isSubtopicUnlocked(topicId, index);
+    const price = getSubtopicPrice(index);
+    
+    const card = document.createElement('article');
+    card.className = 'subtopic-item';
+    card.dataset.subtopicName = subtopic.name;
+    card.dataset.subtopicIndex = index;
+    
+    if (!isUnlocked) {
+        card.classList.add('locked');
+    }
+    
+    if (currentSubtopic && currentSubtopic.name === subtopic.name) {
+        card.classList.add('selected');
+    }
+    
+    card.innerHTML = `
+        <div class="subtopic-badge">Подтема ${index + 1}</div>
+
+        <div class="subtopic-main">
+            <div class="subtopic-header">
+                <div class="subtopic-title-wrap">
+                    <div class="subtopic-name">${escapeHtml(subtopic.name)}</div>
+                    ${!isUnlocked ? `
+                        <div class="subtopic-lock-info">
+                            <i class="fas fa-lock"></i>
+                            <span>${price} 🧠 для открытия</span>
+                        </div>
+                    ` : `
+                        <div class="subtopic-select-hint">
+                            <i class="fas fa-sparkles"></i>
+                            <span>Выбрать для изучения</span>
+                        </div>
+                    `}
+                </div>
+
+                <div class="subtopic-check">
+                    <i class="fas ${isUnlocked ? 'fa-check' : 'fa-lock'}"></i>
+                </div>
+            </div>
+
+            <div class="subtopic-description">${escapeHtml(subtopic.description || 'Описание подтемы отсутствует.')}</div>
+        </div>
+
+        <div class="subtopic-actions">
+            <button class="subtopic-test-btn" type="button" ${!isUnlocked ? 'disabled' : ''}>
+                <i class="fas fa-clipboard-check"></i>
+                <span>Пройти тест</span>
+            </button>
+        </div>
+    `;
+    
+    // Выбор подтемы — только если открыта
+    const selectHandler = () => {
+        if (!isUnlocked) {
+            showNotification(`Нужно ${price} 🧠 Очков Понимания, чтобы открыть подтему!`, 'warning');
+            return;
+        }
+        selectSubtopic(subtopic);
+    };
+    
+    card.addEventListener('click', selectHandler);
+    card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectHandler();
+        }
+    });
+    
+    const testBtn = card.querySelector('.subtopic-test-btn');
+    testBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        takeSubtopicTest(subtopic, index);
+    });
+    
+    return card;
 }
