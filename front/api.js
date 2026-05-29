@@ -170,15 +170,15 @@ class ApiClient {
     }
 
     async getTopicById(topicId) {
-        const response = await fetch(`${API_BASE_URL}/topics/info`, {
-            method: 'GET',
+        const response = await fetch(`${API_BASE_URL}/topicsinfo`, {
+            method: "POST",
             headers: this.getHeaders(),
-            body: JSON.stringify({
-                topic_id: topicId
-            }));
+            body: JSON.stringify({ topicid: topicId })
+        });
 
         if (!response.ok) {
-            throw new Error('Ошибка получения темы');
+            const error = await response.json();
+            throw new Error(error.detail);
         }
 
         return await response.json();

@@ -146,24 +146,36 @@ function setupAuth() {
 }
 
 async function loadUserData() {
+  try {
+    const userInfoData = await api.getCurrentUser();
+    currentUser = userInfoData;
+    displayUserInfo(userInfoData);
+    updateMobileThemeTitle();
+
     try {
-        const [userInfoData, myTopics, allTopics] = await Promise.all([
-            api.getCurrentUser(),
-            api.getMyTopics(),
-            api.getAllTopics()
-        ]);
-
-        currentUser = userInfoData;
-        currentTopics = allTopics;
-
-        displayUserInfo(userInfoData);
-        displayMyTopics(myTopics);
-        displayAllTopics(allTopics);
-        updateMobileThemeTitle();
+      const myTopics = await api.getMyTopics();
+      displayMyTopics(myTopics);
     } catch (error) {
-        showNotification('Ошибка загрузки данных', 'error');
+      console.error("getMyTopics error:", error);
+      showNotification("Не удалось загрузить мои темы", "error");
+      displayMyTopics([]);
     }
+
+    try {
+      const allTopics = await api.getAllTopics();
+      currentTopics = allTopics;
+      displayAllTopics(allTopics);
+    } catch (error) {
+      console.error("getAllTopics error:", error);
+      showNotification("Не удалось загрузить все темы", "error");
+      displayAllTopics([]);
+    }
+  } catch (error) {
+    console.error("loadUserData error:", error);
+    showNotification("Ошибка загрузки данных пользователя", "error");
+  }
 }
+
 
 function displayUserInfo(user) {
     userInfo.innerHTML = `
