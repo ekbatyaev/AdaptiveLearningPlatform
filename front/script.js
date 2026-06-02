@@ -1,4 +1,4 @@
-console.log("SCRIPT JS LOADED", new Date().toISOString());
+console.log("SCRIPT JS LOADED popa", new Date().toISOString());
 
 let currentSubtopic = null;
 let currentUser = null;

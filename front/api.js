@@ -1,4 +1,4 @@
-console.log("API JS LOADED", new Date().toISOString());
+console.log("API JS LOADED ldajlfjkaksfj", new Date().toISOString());
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
@@ -175,7 +175,7 @@ class ApiClient {
         const response = await fetch(`${API_BASE_URL}/topics/info`, {
             method: "POST",
             headers: this.getHeaders(),
-            body: JSON.stringify({ topicid: topicId })
+            body: JSON.stringify({ topic_id: topicId })
         });
 
         if (!response.ok) {
