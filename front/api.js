@@ -1,3 +1,5 @@
+console.log("API JS LOADED", new Date().toISOString());
+
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
 class ApiClient {
@@ -170,7 +172,7 @@ class ApiClient {
     }
 
     async getTopicById(topicId) {
-        const response = await fetch(`${API_BASE_URL}/topicsinfo`, {
+        const response = await fetch(`${API_BASE_URL}/topics/info`, {
             method: "POST",
             headers: this.getHeaders(),
             body: JSON.stringify({ topicid: topicId })
@@ -189,6 +191,8 @@ class ApiClient {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body: JSON.stringify({
+                    username: this.username,
+                    password: this.password,
                     theme_name: themeName,
                     additional_info: additionalInfo
                 })
@@ -229,6 +233,8 @@ class ApiClient {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
+                username: this.username,
+                password: this.password,
                 user_request: userRequest,
                 theme_name: themeName,
                 additional_info: additionalInfo,
@@ -249,6 +255,8 @@ class ApiClient {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({
+                username: this.username,
+                password: this.password,
                 title,
                 description
             })

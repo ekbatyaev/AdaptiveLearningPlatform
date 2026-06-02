@@ -1,3 +1,5 @@
+console.log("SCRIPT JS LOADED", new Date().toISOString());
+
 let currentSubtopic = null;
 let currentUser = null;
 let currentTopic = null;
@@ -151,28 +153,28 @@ async function loadUserData() {
     currentUser = userInfoData;
     displayUserInfo(userInfoData);
     updateMobileThemeTitle();
-
-    try {
-      const myTopics = await api.getMyTopics();
-      displayMyTopics(myTopics);
-    } catch (error) {
-      console.error("getMyTopics error:", error);
-      showNotification("Не удалось загрузить мои темы", "error");
-      displayMyTopics([]);
-    }
-
-    try {
-      const allTopics = await api.getAllTopics();
-      currentTopics = allTopics;
-      displayAllTopics(allTopics);
-    } catch (error) {
-      console.error("getAllTopics error:", error);
-      showNotification("Не удалось загрузить все темы", "error");
-      displayAllTopics([]);
-    }
   } catch (error) {
-    console.error("loadUserData error:", error);
-    showNotification("Ошибка загрузки данных пользователя", "error");
+    console.error("getCurrentUser error:", error);
+    showNotification("Ошибка загрузки пользователя", "error");
+    return;
+  }
+
+  try {
+    const myTopics = await api.getMyTopics();
+    displayMyTopics(Array.isArray(myTopics) ? myTopics : []);
+  } catch (error) {
+    console.error("getMyTopics error:", error);
+    displayMyTopics([]);
+  }
+
+  try {
+    const allTopics = await api.getAllTopics();
+    currentTopics = Array.isArray(allTopics) ? allTopics : [];
+    displayAllTopics(currentTopics);
+  } catch (error) {
+    console.error("getAllTopics error:", error);
+    currentTopics = [];
+    displayAllTopics([]);
   }
 }
 
