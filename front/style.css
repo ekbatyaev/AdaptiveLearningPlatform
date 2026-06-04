@@ -451,7 +451,7 @@ textarea {
 
 .topic-card {
     position: relative;
-    padding: 14px;
+    padding: 14px 14px 52px 14px;
     margin-bottom: 10px;
     border-radius: 18px;
     border: 1px solid var(--line);
@@ -515,8 +515,8 @@ textarea {
 
 .topic-actions {
     position: absolute;
-    top: 8px;
     right: 8px;
+    bottom: 8px;
     display: none;
     z-index: 5;
 }

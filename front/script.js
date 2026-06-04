@@ -7,6 +7,10 @@ let currentTopics = [];
 let conversationContext = '';
 let shouldAutoScroll = true;
 let currentChatMode = 'learning';
+let userPoints = 0;
+let topicAvailabilityMap = {};
+let subtopicAvailabilityMap = {};
+const subtopicPrice = 100;
 
 const authPage = document.getElementById('auth-page');
 const mainApp = document.getElementById('main-app');
@@ -41,6 +45,63 @@ const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
 const desktopSidebarToggleBtn = document.getElementById('desktop-sidebar-toggle-btn');
 const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
 const mobileCurrentTheme = document.getElementById('mobile-current-theme');
+
+function getUserPoints() {
+  return Number(currentUser?.achievements_count || 0);
+}
+
+function getCompletedThemesMap() {
+  return currentUser?.completed_themes || {};
+}
+
+function isThemeCompleted(topicId, themeName) {
+  const completedThemes = getCompletedThemesMap();
+  return Boolean(completedThemes?.[String(topicId)]?.[themeName]);
+}
+
+async function refreshCurrentUserState() {
+  currentUser = await api.getCurrentUser();
+  displayUserInfo(currentUser);
+  return currentUser;
+}
+
+async function loadSubtopicsAvailability(topic, dataJson) {
+    const themes = dataJson?.themes || [];
+    if (!currentUser?.id || !themes.length) return [];
+
+    const results = await Promise.all(
+        themes.map(async (subtopic, index) => {
+            try {
+                const availability = await api.checkThemeAvailability(
+                    currentUser.id,
+                    topic.id,
+                    subtopic.name
+                );
+
+                return {
+                    ...subtopic,
+                    index,
+                    availability
+                };
+            } catch (error) {
+                console.error('Theme availability error:', error);
+                return {
+                    ...subtopic,
+                    index,
+                    availability: {
+                        success: false,
+                        is_available: false,
+                        is_completed: isThemeCompleted(topic.id, subtopic.name),
+                        message: 'Не удалось проверить доступность подтемы.',
+                        previous_theme_name: null
+                    }
+                };
+            }
+        })
+    );
+
+    return results;
+}
 
 marked.setOptions({
     breaks: true,
@@ -284,7 +345,7 @@ async function selectTopic(topic) {
     messagesContainer.innerHTML = '';
     addAIMessage(`# ${topic.title}\n\n${topic.description || 'Описание отсутствует.'}`);
 
-    let programData = topic.data_json;
+    let programData = topic.data_json || topic.datajson;;
 
     if (typeof programData === 'string') {
         try {
@@ -294,7 +355,7 @@ async function selectTopic(topic) {
         }
     }
 
-    displaySubtopics(programData);
+    await displaySubtopics(topic, programData);
 
     userInput.disabled = false;
     sendBtn.disabled = false;
@@ -340,7 +401,7 @@ async function selectTopic(topic) {
     }
 }
 
-function displaySubtopics(dataJson) {
+async function displaySubtopics(topic, dataJson) {
     if (!dataJson || !dataJson.themes || !dataJson.themes.length) {
         subtopicsContainer.style.display = 'none';
         return;
@@ -356,34 +417,74 @@ function displaySubtopics(dataJson) {
         textNode.textContent = 'Свернуть';
     }
 
+    subtopicsList.innerHTML = '<div class="empty-state">Проверяем доступность подтем...</div>';
+
+    const subtopicsWithAvailability = await loadSubtopicsAvailability(topic, dataJson);
+
     subtopicsList.innerHTML = '';
 
-    dataJson.themes.forEach((subtopic, index) => {
+    subtopicsWithAvailability.forEach((subtopic) => {
+        const availability = subtopic.availability || {};
+        const isAvailable = Boolean(availability.is_available);
+        const isCompleted = Boolean(availability.is_completed);
+
         const card = document.createElement('article');
         card.className = 'subtopic-item';
         card.dataset.subtopicName = subtopic.name;
         card.setAttribute('tabindex', '0');
         card.setAttribute('role', 'button');
+        card.setAttribute('aria-disabled', String(!isAvailable));
 
         if (currentSubtopic && currentSubtopic.name === subtopic.name) {
             card.classList.add('selected');
         }
 
+        if (!isAvailable) {
+            card.classList.add('locked');
+        }
+
+        if (isCompleted) {
+            card.classList.add('completed');
+        }
+
         card.innerHTML = `
-            <div class="subtopic-badge">Подтема ${index + 1}</div>
+            <div class="subtopic-badge">Подтема ${subtopic.index + 1}</div>
 
             <div class="subtopic-main">
                 <div class="subtopic-header">
                     <div class="subtopic-title-wrap">
                         <div class="subtopic-name">${escapeHtml(subtopic.name)}</div>
+
+                        ${
+                            !isAvailable
+                                ? `
+                                    <div class="subtopic-lock-info">
+                                        <i class="fas fa-lock"></i>
+                                        <span>${escapeHtml(availability.message || 'Подтема пока недоступна')}</span>
+                                    </div>
+                                `
+                                : ''
+                        }
+
+                        ${
+                            isCompleted
+                                ? `
+                                    <div class="subtopic-lock-info">
+                                        <i class="fas fa-circle-check"></i>
+                                        <span>Подтема пройдена</span>
+                                    </div>
+                                `
+                                : ''
+                        }
+
                         <div class="subtopic-select-hint">
                             <i class="fas fa-sparkles"></i>
-                            <span>Выбрать для изучения</span>
+                            <span>${isAvailable ? 'Выбрать для изучения' : 'Недоступно'}</span>
                         </div>
                     </div>
 
                     <div class="subtopic-check">
-                        <i class="fas fa-check"></i>
+                        <i class="fas ${isCompleted ? 'fa-check' : isAvailable ? 'fa-lock-open' : 'fa-lock'}"></i>
                     </div>
                 </div>
 
@@ -391,14 +492,24 @@ function displaySubtopics(dataJson) {
             </div>
 
             <div class="subtopic-actions">
-                <button class="subtopic-test-btn" type="button">
+                <button class="subtopic-test-btn" type="button" ${!isAvailable ? 'disabled' : ''}>
                     <i class="fas fa-clipboard-check"></i>
-                    <span>Пройти тест</span>
+                    <span>${isCompleted ? 'Пройти ещё раз' : 'Пройти тест'}</span>
                 </button>
             </div>
         `;
 
-        const selectHandler = () => selectSubtopic(subtopic);
+        const selectHandler = () => {
+            if (!isAvailable) {
+                showNotification(
+                    availability.message || 'Сначала нужно пройти предыдущую подтему',
+                    'warning'
+                );
+                return;
+            }
+
+            selectSubtopic(subtopic);
+        };
 
         card.addEventListener('click', selectHandler);
         card.addEventListener('keydown', (e) => {
@@ -411,6 +522,15 @@ function displaySubtopics(dataJson) {
         const testBtn = card.querySelector('.subtopic-test-btn');
         testBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+
+            if (!isAvailable) {
+                showNotification(
+                    availability.message || 'Подтема пока недоступна',
+                    'warning'
+                );
+                return;
+            }
+
             takeSubtopicTest(subtopic);
         });
 
@@ -676,7 +796,25 @@ async function sendMessage() {
 }
 
 async function takeSubtopicTest(subtopic) {
-    if (!currentTopic) {
+    if (!currentTopic || !currentUser?.id) return;
+
+    try {
+        const availability = await api.checkThemeAvailability(
+            currentUser.id,
+            currentTopic.id,
+            subtopic.name
+        );
+
+        if (!availability.is_available) {
+            showNotification(
+                availability.message || 'Подтема пока недоступна',
+                'warning'
+            );
+            return;
+        }
+    } catch (error) {
+        console.error('Theme availability check error:', error);
+        showNotification('Не удалось проверить доступность подтемы', 'error');
         return;
     }
 
@@ -684,7 +822,7 @@ async function takeSubtopicTest(subtopic) {
     smartScrollToBottom(true);
 
     try {
-        addAIMessage(`📝 **Запрашиваю тест по теме:** ${subtopic.name}...`);
+        addAIMessage(`### Тест по подтеме "${subtopic.name}"...\n\nПодготовка вопросов...`);
 
         const data = await api.getFinalTest(subtopic.name, subtopic.description);
         const questions = data.test || [];
@@ -692,26 +830,24 @@ async function takeSubtopicTest(subtopic) {
         typingIndicator.style.display = 'none';
 
         const combinedQuestions = questions
-            .map((q, index) => `${index + 1}. **${q.name}:** ${q.description}`)
+            .map((q, index) => `${index + 1}. **${q.name}**\n${q.description}`)
             .join('\n\n');
 
-        addAIMessage(
-            `## 📋 Тест по теме: ${data.title}\n\n**Описание:** ${data.description}\n\n${combinedQuestions}`
-        );
+        addAIMessage(`## ${data.title}\n\n${data.description}\n\n${combinedQuestions}`);
 
         currentSubtopic = subtopic;
         currentChatMode = 'test';
         conversationContext = '';
+
         updateSelectedSubtopicCard();
         updateThemeChip();
 
         userInput.disabled = false;
         sendBtn.disabled = false;
-        userInput.placeholder = `Введите ответ по тесту «${subtopic.name}»...`;
-
+        userInput.placeholder = `Ответьте на тест по "${subtopic.name}"...`;
     } catch (error) {
         typingIndicator.style.display = 'none';
-        showNotification('Ошибка при получении теста', 'error');
+        showNotification('Ошибка получения теста', 'error');
         console.error('Test error:', error);
     }
 }
